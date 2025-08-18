@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Resume Optimizer (MVP)</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="container">
+    <h1>Resume Optimizer (MVP)</h1>
+    <p class="subhead">Paste your resume and the job description. Get instant alignment insights.</p>
+  </header>
+
+  <main class="container grid">
+    <section>
+      <label for="resume">Your Resume (paste text)</label>
+      <textarea id="resume" placeholder="Paste your resume text here..." rows="14"></textarea>
+    </section>
+
+    <section>
+      <label for="jd">Job Description (paste text)</label>
+      <textarea id="jd" placeholder="Paste the job description here..." rows="14"></textarea>
+    </section>
+  </main>
+
+  <div class="container actions">
+    <button id="analyzeBtn">Analyze Alignment</button>
+    <button id="clearBtn" class="secondary">Clear</button>
+  </div>
+
+  <section class="container results">
+    <h2>Results</h2>
+    <div id="summary" class="card"></div>
+    <div class="grid-3">
+      <div class="card">
+        <h3>Top JD Keywords</h3>
+        <ul id="topJd"></ul>
+      </div>
+      <div class="card">
+        <h3>Missing in Resume</h3>
+        <ul id="missing"></ul>
+      </div>
+      <div class="card">
+        <h3>Suggested Additions</h3>
+        <ul id="suggestions"></ul>
+      </div>
+    </div>
+  </section>
+
+  <footer class="container footer">
+    <small>For demo use only. Next: AI rewrite & export to Word/PDF.</small>
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+</html>
