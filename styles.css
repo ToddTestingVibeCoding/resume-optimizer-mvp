@@ -25,6 +25,14 @@ button {
   background: #111; color: #fff;
 }
 button.secondary { background: #e6e6e6; color: #111; }
+/* AI button variant */
+.ai-btn {
+  background: #3b82f6;      /* blue */
+  color: #fff;
+}
+.ai-btn:hover {
+  background: #2563eb;
+}
 
 .results h2 { margin: 24px 0 8px; }
 .card {
