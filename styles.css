@@ -45,3 +45,12 @@ button.secondary { background: #e6e6e6; color: #111; }
 
 .footer { color: #666; text-align: center; padding-bottom: 40px; }
 ul { margin: 6px 0 0; padding-left: 18px; }
+
+@keyframes pulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.01); }
+  100% { transform: scale(1); }
+}
+.ai-btn.loading {
+  animation: pulse 1.2s ease-in-out infinite;
+}
