@@ -87,3 +87,60 @@ document.getElementById("clearBtn").addEventListener("click", () => {
   document.getElementById("missing").innerHTML = "";
   document.getElementById("suggestions").innerHTML = "";
 });
+
+// ---- AI Rewrite integration ----
+async function callRewriteAPI(resume, jd) {
+  const r = await fetch("/api/rewrite", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ resume, jd })
+  });
+  if (!r.ok) {
+    const t = await r.text();
+    throw new Error(`Rewrite failed: ${t}`);
+  }
+  const data = await r.json();
+  return data.bullets || "";
+}
+
+const rewriteBtn = document.getElementById("rewriteBtn");
+
+if (rewriteBtn) {
+  rewriteBtn.addEventListener("click", async () => {
+    const resume = document.getElementById("resume").value;
+    const jd = document.getElementById("jd").value;
+    const summary = document.getElementById("summary");
+
+    if (!resume.trim() || !jd.trim()) {
+      summary.innerHTML = `<p style="color:#b00020;">Please paste both your resume and the job description first.</p>`;
+      return;
+    }
+
+    // Optional loading state (works even if you didn’t add the CSS yet)
+    rewriteBtn.disabled = true;
+    const originalText = rewriteBtn.textContent;
+    rewriteBtn.textContent = "Rewriting…";
+
+    summary.innerHTML = "<em>Rewriting with AI…</em>";
+
+    try {
+      const bullets = await callRewriteAPI(resume, jd);
+
+      // Format nicely as a list
+      const html = bullets
+        .split("\n")
+        .map(l => l.trim())
+        .filter(Boolean)
+        .map(l => l.replace(/^[-•*\d.)\s]+/, "")) // strip leading markers
+        .map(l => `<li>${l}</li>`)
+        .join("");
+
+      summary.innerHTML = `<h3>AI Suggested Bullets</h3><ul>${html}</ul>`;
+    } catch (e) {
+      summary.innerHTML = `<p style="color:#b00020;">${e.message}</p>`;
+    } finally {
+      rewriteBtn.disabled = false;
+      rewriteBtn.textContent = originalText;
+    }
+  });
+}
