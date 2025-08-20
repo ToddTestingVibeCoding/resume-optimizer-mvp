@@ -1,4 +1,9 @@
-// Basic keyword extraction + gap check (quick-and-dirty, AI-free)
+// ================================
+// Resume Optimizer - script.js
+// Safe reset version
+// ================================
+
+// ---------- Utility: tokenizing & keyword stats ----------
 const STOPWORDS = new Set([
   "the","and","or","to","a","of","in","for","on","with","is","are","as","at","by",
   "an","be","this","that","from","it","you","your","we","our","their","they",
@@ -41,13 +46,13 @@ function missingTerms(jdTop, resumeCounts) {
 }
 
 function roughSuggestions(missing) {
-  // Light-touch phrasing to integrate keywords naturally
-  return missing.slice(0, 10).map(({term}) => 
+  return missing.slice(0, 10).map(({term}) =>
     `Add a bullet using “${term}” in context (e.g., quantified impact or tool usage).`
   );
 }
 
 function renderList(el, items, formatter = (x)=>x) {
+  if (!el) return;
   el.innerHTML = "";
   for (const item of items) {
     const li = document.createElement("li");
@@ -56,39 +61,57 @@ function renderList(el, items, formatter = (x)=>x) {
   }
 }
 
-document.getElementById("analyzeBtn").addEventListener("click", () => {
-  const resume = document.getElementById("resume").value;
-  const jd = document.getElementById("jd").value;
-  const resumeCounts = keywordCounts(resume);
-  const jdCounts = keywordCounts(jd);
+// ---------- Analyze Alignment (no AI) ----------
+const analyzeBtn = document.getElementById("analyzeBtn");
+const clearBtn = document.getElementById("clearBtn");
 
-  const jdTop = topTerms(jdCounts, 20);
-  const miss = missingTerms(jdTop, resumeCounts);
-  const sugg = roughSuggestions(miss);
+if (analyzeBtn) {
+  analyzeBtn.addEventListener("click", () => {
+    const resume = document.getElementById("resume").value;
+    const jd = document.getElementById("jd").value;
 
-  // Summary
-  const coverage = ((jdTop.length - miss.length) / Math.max(1, jdTop.length) * 100).toFixed(0);
-  document.getElementById("summary").innerHTML = `
-    <p><strong>Coverage:</strong> ${coverage}% of top JD terms appear in your resume.</p>
-    <p><strong>Next step:</strong> Use “Suggested Additions” to weave missing terms into impact bullets.</p>
-  `;
+    const summaryEl = document.getElementById("summary");
+    const topJdEl = document.getElementById("topJd");
+    const missingEl = document.getElementById("missing");
+    const suggestionsEl = document.getElementById("suggestions");
 
-  // Lists
-  renderList(document.getElementById("topJd"), jdTop, x => `${x.term} (${x.count})`);
-  renderList(document.getElementById("missing"), miss, x => x.term);
-  renderList(document.getElementById("suggestions"), sugg);
-});
+    const resumeCounts = keywordCounts(resume);
+    const jdCounts = keywordCounts(jd);
 
-document.getElementById("clearBtn").addEventListener("click", () => {
-  document.getElementById("resume").value = "";
-  document.getElementById("jd").value = "";
-  document.getElementById("summary").innerHTML = "";
-  document.getElementById("topJd").innerHTML = "";
-  document.getElementById("missing").innerHTML = "";
-  document.getElementById("suggestions").innerHTML = "";
-});
+    const jdTop = topTerms(jdCounts, 20);
+    const miss = missingTerms(jdTop, resumeCounts);
+    const sugg = roughSuggestions(miss);
 
-// ---- AI Rewrite integration ----
+    const coverage = ((jdTop.length - miss.length) / Math.max(1, jdTop.length) * 100).toFixed(0);
+    if (summaryEl) {
+      summaryEl.innerHTML = `
+        <p><strong>Coverage:</strong> ${coverage}% of top JD terms appear in your resume.</p>
+        <p><strong>Next step:</strong> Use “Suggested Additions” to weave missing terms into impact bullets.</p>
+      `;
+    }
+
+    renderList(topJdEl, jdTop, x => `${x.term} (${x.count})`);
+    renderList(missingEl, miss, x => x.term);
+    renderList(suggestionsEl, sugg);
+  });
+}
+
+if (clearBtn) {
+  clearBtn.addEventListener("click", () => {
+    const ids = ["resume","jd","summary","topJd","missing","suggestions"];
+    for (const id of ids) {
+      const el = document.getElementById(id);
+      if (!el) continue;
+      if (el.tagName === "TEXTAREA" || el.tagName === "INPUT") {
+        el.value = "";
+      } else {
+        el.innerHTML = "";
+      }
+    }
+  });
+}
+
+// ---------- AI Rewrite (secure backend) ----------
 async function callRewriteAPI(resume, jd) {
   const r = await fetch("/api/rewrite", {
     method: "POST",
@@ -112,32 +135,29 @@ if (rewriteBtn) {
     const summary = document.getElementById("summary");
 
     if (!resume.trim() || !jd.trim()) {
-      summary.innerHTML = `<p style="color:#b00020;">Please paste both your resume and the job description first.</p>`;
+      if (summary) summary.innerHTML = `<p style="color:#b00020;">Please paste both your resume and the job description first.</p>`;
       return;
     }
 
-    // Optional loading state (works even if you didn’t add the CSS yet)
     rewriteBtn.disabled = true;
     const originalText = rewriteBtn.textContent;
     rewriteBtn.textContent = "Rewriting…";
-
-    summary.innerHTML = "<em>Rewriting with AI…</em>";
+    if (summary) summary.innerHTML = "<em>Rewriting with AI…</em>";
 
     try {
       const bullets = await callRewriteAPI(resume, jd);
 
-      // Format nicely as a list
       const html = bullets
         .split("\n")
         .map(l => l.trim())
         .filter(Boolean)
-        .map(l => l.replace(/^[-•*\d.)\s]+/, "")) // strip leading markers
+        .map(l => l.replace(/^[-•*\d.)\s]+/, "")) // strip any leading markers
         .map(l => `<li>${l}</li>`)
         .join("");
 
-      summary.innerHTML = `<h3>AI Suggested Bullets</h3><ul>${html}</ul>`;
+      if (summary) summary.innerHTML = `<h3>AI Suggested Bullets</h3><ul>${html}</ul>`;
     } catch (e) {
-      summary.innerHTML = `<p style="color:#b00020;">${e.message}</p>`;
+      if (summary) summary.innerHTML = `<p style="color:#b00020;">${e.message}</p>`;
     } finally {
       rewriteBtn.disabled = false;
       rewriteBtn.textContent = originalText;
@@ -145,17 +165,15 @@ if (rewriteBtn) {
   });
 }
 
-// ---- Copy & Download ----
-const copyBtn = document.getElementById("copyBtn");
-const downloadBtn = document.getElementById("downloadBtn");
-
+// ---------- Copy + Download helpers ----------
 function getCurrentBullets() {
   const summary = document.getElementById("summary");
-  const lis = summary.querySelectorAll("li");
-  return Array.from(lis).map(li => li.textContent);
+  const lis = summary ? summary.querySelectorAll("li") : [];
+  return Array.from(lis).map(li => li.textContent.trim()).filter(Boolean);
 }
 
-// Copy to clipboard
+// Copy AI bullets
+const copyBtn = document.getElementById("copyBtn");
 if (copyBtn) {
   copyBtn.addEventListener("click", async () => {
     const bullets = getCurrentBullets();
@@ -172,16 +190,8 @@ if (copyBtn) {
   });
 }
 
-// Download as DOCX
-// ---- Collect current AI bullets from the page ----
-function getCurrentBullets() {
-  const summary = document.getElementById("summary");
-  const lis = summary ? summary.querySelectorAll("li") : [];
-  return Array.from(lis).map(li => li.textContent.trim()).filter(Boolean);
-}
-
+// Download real DOCX (backend generates via /api/download-docx)
 const downloadBtn = document.getElementById("downloadBtn");
-
 if (downloadBtn) {
   downloadBtn.addEventListener("click", async () => {
     const bullets = getCurrentBullets();
@@ -190,13 +200,11 @@ if (downloadBtn) {
       return;
     }
 
-    // simple loading state
     downloadBtn.disabled = true;
     const originalText = downloadBtn.textContent;
     downloadBtn.textContent = "Preparing DOCX…";
 
     try {
-      // 🔽 Call your Vercel backend to generate a proper DOCX
       const r = await fetch("/api/download-docx", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -211,7 +219,6 @@ if (downloadBtn) {
         throw new Error(`DOCX export failed: ${t}`);
       }
 
-      // 🔽 Stream the Word file back and trigger download
       const blob = await r.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
