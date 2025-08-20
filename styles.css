@@ -25,6 +25,13 @@ button {
   background: #111; color: #fff;
 }
 button.secondary { background: #e6e6e6; color: #111; }
+button.secondary {
+  background: #f1f1f1;
+  color: #111;
+}
+button.secondary:hover {
+  background: #e2e2e2;
+}
 /* AI button variant */
 .ai-btn {
   background: #3b82f6;      /* blue */
