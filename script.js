@@ -173,25 +173,59 @@ if (copyBtn) {
 }
 
 // Download as DOCX
+// ---- Collect current AI bullets from the page ----
+function getCurrentBullets() {
+  const summary = document.getElementById("summary");
+  const lis = summary ? summary.querySelectorAll("li") : [];
+  return Array.from(lis).map(li => li.textContent.trim()).filter(Boolean);
+}
+
+const downloadBtn = document.getElementById("downloadBtn");
+
 if (downloadBtn) {
-  downloadBtn.addEventListener("click", () => {
+  downloadBtn.addEventListener("click", async () => {
     const bullets = getCurrentBullets();
     if (!bullets.length) {
       alert("No AI bullets to download yet!");
       return;
     }
 
-    // Build a simple DOCX-like blob
-    const content = `AI Suggested Resume Bullets\n\n${bullets.map(b => "• " + b).join("\n")}`;
-    const blob = new Blob([content], { type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" });
-    const url = URL.createObjectURL(blob);
+    // simple loading state
+    downloadBtn.disabled = true;
+    const originalText = downloadBtn.textContent;
+    downloadBtn.textContent = "Preparing DOCX…";
 
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "ai_resume_bullets.docx";
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    try {
+      // 🔽 Call your Vercel backend to generate a proper DOCX
+      const r = await fetch("/api/download-docx", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: "AI Suggested Resume Bullets",
+          bullets
+        })
+      });
+
+      if (!r.ok) {
+        const t = await r.text();
+        throw new Error(`DOCX export failed: ${t}`);
+      }
+
+      // 🔽 Stream the Word file back and trigger download
+      const blob = await r.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "ai_resume_bullets.docx";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      alert(e.message);
+    } finally {
+      downloadBtn.disabled = false;
+      downloadBtn.textContent = originalText;
+    }
   });
 }
