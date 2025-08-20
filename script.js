@@ -144,3 +144,54 @@ if (rewriteBtn) {
     }
   });
 }
+
+// ---- Copy & Download ----
+const copyBtn = document.getElementById("copyBtn");
+const downloadBtn = document.getElementById("downloadBtn");
+
+function getCurrentBullets() {
+  const summary = document.getElementById("summary");
+  const lis = summary.querySelectorAll("li");
+  return Array.from(lis).map(li => li.textContent);
+}
+
+// Copy to clipboard
+if (copyBtn) {
+  copyBtn.addEventListener("click", async () => {
+    const bullets = getCurrentBullets();
+    if (!bullets.length) {
+      alert("No AI bullets to copy yet!");
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(bullets.join("\n"));
+      alert("Copied to clipboard ✅");
+    } catch (err) {
+      alert("Copy failed: " + err.message);
+    }
+  });
+}
+
+// Download as DOCX
+if (downloadBtn) {
+  downloadBtn.addEventListener("click", () => {
+    const bullets = getCurrentBullets();
+    if (!bullets.length) {
+      alert("No AI bullets to download yet!");
+      return;
+    }
+
+    // Build a simple DOCX-like blob
+    const content = `AI Suggested Resume Bullets\n\n${bullets.map(b => "• " + b).join("\n")}`;
+    const blob = new Blob([content], { type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" });
+    const url = URL.createObjectURL(blob);
+
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "ai_resume_bullets.docx";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  });
+}
