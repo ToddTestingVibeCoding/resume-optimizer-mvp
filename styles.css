@@ -45,6 +45,31 @@ button.secondary:hover { background: #e2e2e2; }
 .ai-btn:hover { background: #2563eb; }
 button:disabled { opacity: .7; cursor: not-allowed; }
 
+/* --- Alerts / Messages --- */
+.alert {
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin: 10px 0;
+  border: 1px solid transparent;
+}
+.alert.info    { background: #eef2ff; border-color: #c7d2fe; color: #1e3a8a; }   /* indigo */
+.alert.success { background: #ecfdf5; border-color: #bbf7d0; color: #065f46; }   /* green */
+.alert.warn    { background: #fffbeb; border-color: #fde68a; color: #92400e; }   /* amber */
+.alert.error   { background: #fef2f2; border-color: #fecaca; color: #991b1b; }   /* red */
+
+/* --- Inline spinner --- */
+.spinner {
+  width: 18px; height: 18px;
+  border: 3px solid #e5e7eb;
+  border-top-color: #2563eb;
+  border-radius: 50%;
+  display: inline-block;
+  animation: spin 0.8s linear infinite;
+  vertical-align: -3px;
+  margin-right: 8px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
 /* Results */
 .results h2 { margin-bottom: 8px; }
 .card {
