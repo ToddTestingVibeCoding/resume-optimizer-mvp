@@ -45,6 +45,27 @@ button.secondary:hover { background: #e2e2e2; }
 .ai-btn:hover { background: #2563eb; }
 button:disabled { opacity: .7; cursor: not-allowed; }
 
+/* Commit: style: add layout and styling for refinement controls */
+
+.controls { 
+  display: grid; 
+  grid-template-columns: 1fr; 
+  gap: 12px; 
+  margin-bottom: 12px; 
+}
+.control { display: flex; gap: 10px; align-items: center; }
+.control label { min-width: 110px; color: #333; }
+select { 
+  padding: 8px 10px; 
+  border: 1px solid #e5e7eb; 
+  border-radius: 8px; 
+  background: #fff; 
+  font: inherit; 
+}
+@media (min-width: 700px) {
+  .controls { grid-template-columns: repeat(3, 1fr); }
+}
+
 /* --- Alerts / Messages --- */
 .alert {
   border-radius: 10px;
