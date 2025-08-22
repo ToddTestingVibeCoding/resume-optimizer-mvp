@@ -7,32 +7,35 @@
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <header class="container">
+  <header class="container-narrow">
     <h1>Resume Optimizer (MVP)</h1>
-    <p class="subhead">Paste your resume and the job description. Get instant alignment insights.</p>
+    <p class="subhead">Paste your resume and the job description. Analyze alignment or get AI-suggested bullets.</p>
   </header>
 
-  <main class="container grid">
-    <section>
-      <label for="resume">Your Resume (paste text)</label>
-      <textarea id="resume" placeholder="Paste your resume text here..." rows="14"></textarea>
-    </section>
-
-    <section>
-      <label for="jd">Job Description (paste text)</label>
-      <textarea id="jd" placeholder="Paste the job description here..." rows="14"></textarea>
-    </section>
+  <!-- Inputs -->
+  <main class="container">
+    <div class="input-col">
+      <h2>Step 1: Paste Resume</h2>
+      <textarea id="resume" placeholder="Paste your resume here..." rows="16"></textarea>
+    </div>
+    <div class="input-col">
+      <h2>Step 2: Paste Job Description</h2>
+      <textarea id="jd" placeholder="Paste the job description here..." rows="16"></textarea>
+    </div>
   </main>
 
-  <div class="container actions">
-  <button id="analyzeBtn">Analyze Alignment</button>
-  <button id="clearBtn" class="secondary">Clear</button>
-  <button id="rewriteBtn" class="ai-btn">Rewrite for Alignment (AI)</button>
-</div>
+  <!-- Actions -->
+  <div class="container-narrow actions">
+    <button id="analyzeBtn">Analyze Alignment</button>
+    <button id="clearBtn" class="secondary">Clear</button>
+    <button id="rewriteBtn" class="ai-btn">Rewrite for Alignment (AI)</button>
+  </div>
 
-  <section class="container results">
+  <!-- Results -->
+  <section class="container-narrow results">
     <h2>Results</h2>
     <div id="summary" class="card"></div>
+
     <div class="grid-3">
       <div class="card">
         <h3>Top JD Keywords</h3>
@@ -48,13 +51,15 @@
       </div>
     </div>
   </section>
-  <div class="container actions">
-  <button id="copyBtn" class="secondary">Copy AI Bullets</button>
-  <button id="downloadBtn" class="secondary">Download as DOCX</button>
-</div>
 
-  <footer class="container footer">
-    <small>For demo use only. Next: AI rewrite & export to Word/PDF.</small>
+  <!-- Output actions -->
+  <div class="container-narrow actions">
+    <button id="copyBtn" class="secondary">Copy AI Bullets</button>
+    <button id="downloadBtn" class="secondary">Download as DOCX</button>
+  </div>
+
+  <footer class="container-narrow footer">
+    <small>For demo use only. AI should never fabricate experience. Keep edits factual.</small>
   </footer>
 
   <script src="script.js"></script>
