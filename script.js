@@ -1,6 +1,6 @@
 // ================================
 // Resume Optimizer - script.js
-// Complete version (Lessons 1–6)
+// Complete version (Lessons 1–7)
 // ================================
 
 // ---------- Keyword analysis (no AI) ----------
@@ -187,11 +187,11 @@ if (clearBtn) {
 }
 
 // ---------- AI Rewrite (secure backend) ----------
-async function callRewriteAPI(resume, jd) {
+async function callRewriteAPI(resume, jd, opts = {}) {
   const r = await fetch("/api/rewrite", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ resume, jd })
+    body: JSON.stringify({ resume, jd, opts })
   });
   if (!r.ok) {
     const t = await r.text();
@@ -216,10 +216,15 @@ if (rewriteBtn) {
       return;
     }
 
+    // Read Lesson 7 controls
+    const tone = (document.getElementById("tone")?.value || "Professional").toLowerCase();
+    const seniority = (document.getElementById("seniority")?.value || "Mid").toLowerCase();
+    const role = (document.getElementById("role")?.value || "Engineering").toLowerCase();
+
     if (summary) summary.innerHTML = spinnerHTML("Rewriting with AI…");
 
     try {
-      const bullets = await callRewriteAPI(resume, jd);
+      const bullets = await callRewriteAPI(resume, jd, { tone, seniority, role });
       const html = bullets
         .split("\n")
         .map(l => l.trim())
