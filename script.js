@@ -1,6 +1,6 @@
 // ================================
 // Resume Optimizer - script.js
-// Complete version (Lessons 1–7)
+// Complete version (Lessons 1–8)
 // ================================
 
 // ---------- Keyword analysis (no AI) ----------
@@ -9,26 +9,6 @@ const STOPWORDS = new Set([
   "an","be","this","that","from","it","you","your","we","our","their","they",
   "will","can","ability","responsible","responsibilities","experience","years"
 ]);
-
-/* Commit: feat: add daily rewrite usage tracking with localStorage */
-
-const MAX_REWRITES_PER_DAY = 5;
-
-function getTodayKey() {
-  const d = new Date();
-  return `rewrites_${d.getFullYear()}_${d.getMonth()+1}_${d.getDate()}`;
-}
-
-function getRewritesUsed() {
-  return parseInt(localStorage.getItem(getTodayKey()) || "0", 10);
-}
-
-function incrementRewrites() {
-  const key = getTodayKey();
-  const current = getRewritesUsed();
-  localStorage.setItem(key, current + 1);
-  return current + 1;
-}
 
 function tokenize(text) {
   return (text || "")
@@ -81,6 +61,30 @@ function renderList(el, items, formatter = (x)=>x) {
   }
 }
 
+// ---------- Lesson 8: Usage tracking (daily limit) ----------
+const MAX_REWRITES_PER_DAY = 5;
+
+function getTodayKey() {
+  const d = new Date();
+  return `rewrites_${d.getFullYear()}_${d.getMonth()+1}_${d.getDate()}`;
+}
+function getRewritesUsed() {
+  return parseInt(localStorage.getItem(getTodayKey()) || "0", 10);
+}
+function incrementRewrites() {
+  const key = getTodayKey();
+  const current = getRewritesUsed();
+  const next = current + 1;
+  localStorage.setItem(key, next);
+  return next;
+}
+function updateUsageCounter() {
+  const el = document.getElementById("usageCounter");
+  if (el) {
+    el.textContent = `${getRewritesUsed()} / ${MAX_REWRITES_PER_DAY} rewrites used today`;
+  }
+}
+
 // ---------- Messaging helpers ----------
 function clearMessages() {
   const box = document.getElementById("messages");
@@ -118,16 +122,6 @@ function spinnerHTML(text = "Working…") {
   return `<span class="spinner"></span>${text}`;
 }
 
-/* Commit: feat: add updateUsageCounter helper and initialize value */
-function updateUsageCounter() {
-  const el = document.getElementById("usageCounter");
-  if (el) {
-    el.textContent = `${getRewritesUsed()} / ${MAX_REWRITES_PER_DAY} rewrites used today`;
-  }
-}
-// Initialize on page load
-updateUsageCounter();
-
 // ---------- Persistence (localStorage) ----------
 (function setupPersistence() {
   const resumeEl = document.getElementById("resume");
@@ -151,6 +145,9 @@ updateUsageCounter();
   if (resumeEl) resumeEl.addEventListener("input", save);
   if (jdEl) jdEl.addEventListener("input", save);
 })();
+
+// Initialize the usage counter on load (safe because script tag is at end of <body>)
+updateUsageCounter();
 
 // ---------- Analyze Alignment ----------
 const analyzeBtn = document.getElementById("analyzeBtn");
@@ -246,14 +243,14 @@ if (rewriteBtn) {
       return;
     }
 
-     //ADD THIS BLOCK (Step B)
+    // Lesson 8: usage gating BEFORE calling the API
     const used = getRewritesUsed();
     if (used >= MAX_REWRITES_PER_DAY) {
       showMessage("warn", "Daily limit reached. Please come back tomorrow or sign up to unlock more.");
       return;
     }
 
-    // Read Lesson 7 controls
+    // Lesson 7 controls
     const tone = (document.getElementById("tone")?.value || "Professional").toLowerCase();
     const seniority = (document.getElementById("seniority")?.value || "Mid").toLowerCase();
     const role = (document.getElementById("role")?.value || "Engineering").toLowerCase();
@@ -270,14 +267,12 @@ if (rewriteBtn) {
         .map(l => `<li>${l}</li>`)
         .join("");
 
-if (summary) summary.innerHTML = `<h3>AI Suggested Bullets</h3><ul>${html}</ul>`;
+      if (summary) summary.innerHTML = `<h3>AI Suggested Bullets</h3><ul>${html}</ul>`;
 
-incrementRewrites();
-updateUsageCounter();
-showMessage(
-  "success",
-  `AI rewrite complete. (${getRewritesUsed()}/${MAX_REWRITES_PER_DAY} used today)`
-);
+      // Lesson 8: increment + update counter + success message with tally
+      incrementRewrites();
+      updateUsageCounter();
+      showMessage("success", `AI rewrite complete. (${getRewritesUsed()}/${MAX_REWRITES_PER_DAY} used today)`);
     } catch (e) {
       if (summary) summary.innerHTML = "";
       showMessage("error", `Rewrite failed: ${e.message}`);
