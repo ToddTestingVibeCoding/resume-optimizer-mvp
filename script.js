@@ -118,6 +118,16 @@ function spinnerHTML(text = "Working…") {
   return `<span class="spinner"></span>${text}`;
 }
 
+/* Commit: feat: add updateUsageCounter helper and initialize value */
+function updateUsageCounter() {
+  const el = document.getElementById("usageCounter");
+  if (el) {
+    el.textContent = `${getRewritesUsed()} / ${MAX_REWRITES_PER_DAY} rewrites used today`;
+  }
+}
+// Initialize on page load
+updateUsageCounter();
+
 // ---------- Persistence (localStorage) ----------
 (function setupPersistence() {
   const resumeEl = document.getElementById("resume");
