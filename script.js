@@ -10,6 +10,26 @@ const STOPWORDS = new Set([
   "will","can","ability","responsible","responsibilities","experience","years"
 ]);
 
+/* Commit: feat: add daily rewrite usage tracking with localStorage */
+
+const MAX_REWRITES_PER_DAY = 5;
+
+function getTodayKey() {
+  const d = new Date();
+  return `rewrites_${d.getFullYear()}_${d.getMonth()+1}_${d.getDate()}`;
+}
+
+function getRewritesUsed() {
+  return parseInt(localStorage.getItem(getTodayKey()) || "0", 10);
+}
+
+function incrementRewrites() {
+  const key = getTodayKey();
+  const current = getRewritesUsed();
+  localStorage.setItem(key, current + 1);
+  return current + 1;
+}
+
 function tokenize(text) {
   return (text || "")
     .toLowerCase()
