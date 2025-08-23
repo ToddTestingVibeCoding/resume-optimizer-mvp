@@ -1,86 +1,162 @@
-/* --- Base layout + global styles --- */
-* { box-sizing: border-box; }
-:root { --radius: 12px; --pad: 14px; --maxw: 1100px; }
+/* ---------- Base ---------- */
+:root {
+  --radius: 12px;
+  --pad: 16px;
+}
 
 body {
-  margin: 0; padding: 0;
-  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial;
-  background: #f9fafb; color: #111;
-  line-height: 1.5;
+  font-family: system-ui, sans-serif;
+  margin: 0;
+  background: #f9fafb;
+  color: #111;
 }
 
-h1, h2 { margin: 0 0 10px; }
-h1 { font-size: 28px; }
-h2 { font-size: 18px; color: #222; }
-.subhead { color: #555; margin-top: 4px; }
-
-.container { 
-  max-width: var(--maxw); margin: 0 auto; padding: 20px;
-  display: grid; gap: 20px;
+h1, h2, h3 {
+  margin-top: 0;
 }
-.container-narrow { max-width: 900px; margin: 0 auto; padding: 20px; }
 
-.input-col { display: flex; flex-direction: column; gap: 8px; }
-@media (min-width: 900px) {
-  .container { grid-template-columns: 1fr 1fr; }
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+.container-narrow {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+.sub {
+  color: #555;
+  margin-top: -10px;
+  margin-bottom: 20px;
 }
 
 textarea {
-  width: 100%; min-height: 280px; padding: 12px;
-  background: #fff; border: 1px solid #e5e7eb; border-radius: var(--radius);
+  width: 100%;
+  border: 1px solid #e5e7eb;
+  border-radius: var(--radius);
+  padding: 12px;
   font: inherit;
+  background: #fff;
+  resize: vertical;
 }
 
-/* Buttons */
-.actions { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+label {
+  display: block;
+  margin-bottom: 6px;
+  font-weight: 600;
+}
+
+/* ---------- Layout Grids ---------- */
+.grid-2 {
+  display: grid;
+  gap: 16px;
+}
+@media (min-width: 900px) {
+  .grid-2 {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.grid-3 {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: 1fr;
+}
+@media (min-width: 900px) {
+  .grid-3 {
+    grid-template-columns: 1fr 1fr 1fr;
+  }
+}
+
+/* ---------- Buttons ---------- */
+.actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-top: 12px;
+}
+
 button {
-  border: none; border-radius: 10px; font-weight: 600; cursor: pointer;
-  padding: 12px 16px; background: #2563eb; color: #fff;
+  border: none;
+  border-radius: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 12px 16px;
+  background: #2563eb;
+  color: #fff;
   transition: background .2s ease;
 }
-button:hover { background: #1e40af; }
-button.secondary { background: #f1f1f1; color: #111; }
-button.secondary:hover { background: #e2e2e2; }
-.ai-btn { background: #3b82f6; color: #fff; }
-.ai-btn:hover { background: #2563eb; }
-button:disabled { opacity: .7; cursor: not-allowed; }
-
-/* Commit: style: add layout and styling for refinement controls */
-
-.controls { 
-  display: grid; 
-  grid-template-columns: 1fr; 
-  gap: 12px; 
-  margin-bottom: 12px; 
+button:hover {
+  background: #1e40af;
 }
-.control { display: flex; gap: 10px; align-items: center; }
-.control label { min-width: 110px; color: #333; }
-select { 
-  padding: 8px 10px; 
-  border: 1px solid #e5e7eb; 
-  border-radius: 8px; 
-  background: #fff; 
-  font: inherit; 
+button.secondary {
+  background: #f1f1f1;
+  color: #111;
+}
+button.secondary:hover {
+  background: #e2e2e2;
+}
+.ai-btn {
+  background: #3b82f6;
+  color: #fff;
+}
+.ai-btn:hover {
+  background: #2563eb;
+}
+button:disabled {
+  opacity: .7;
+  cursor: not-allowed;
+}
+
+/* ---------- Controls (Lesson 7) ---------- */
+.controls {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+  margin: 16px 0;
+}
+.control {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+.control label {
+  min-width: 110px;
+  color: #333;
+}
+select {
+  padding: 8px 10px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #fff;
+  font: inherit;
 }
 @media (min-width: 700px) {
-  .controls { grid-template-columns: repeat(3, 1fr); }
+  .controls {
+    grid-template-columns: repeat(3, 1fr);
+  }
 }
 
-/* --- Alerts / Messages --- */
+/* ---------- Alerts & Messages ---------- */
 .alert {
   border-radius: 10px;
   padding: 12px 14px;
   margin: 10px 0;
   border: 1px solid transparent;
 }
-.alert.info    { background: #eef2ff; border-color: #c7d2fe; color: #1e3a8a; }   /* indigo */
-.alert.success { background: #ecfdf5; border-color: #bbf7d0; color: #065f46; }   /* green */
-.alert.warn    { background: #fffbeb; border-color: #fde68a; color: #92400e; }   /* amber */
-.alert.error   { background: #fef2f2; border-color: #fecaca; color: #991b1b; }   /* red */
+.alert.info    { background: #eef2ff; border-color: #c7d2fe; color: #1e3a8a; }
+.alert.success { background: #ecfdf5; border-color: #bbf7d0; color: #065f46; }
+.alert.warn    { background: #fffbeb; border-color: #fde68a; color: #92400e; }
+.alert.error   { background: #fef2f2; border-color: #fecaca; color: #991b1b; }
 
-/* --- Inline spinner --- */
+/* ---------- Spinner ---------- */
 .spinner {
-  width: 18px; height: 18px;
+  width: 18px;
+  height: 18px;
   border: 3px solid #e5e7eb;
   border-top-color: #2563eb;
   border-radius: 50%;
@@ -89,17 +165,92 @@ select {
   vertical-align: -3px;
   margin-right: 8px;
 }
-@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
 
-/* Results */
-.results h2 { margin-bottom: 8px; }
+/* ---------- Results ---------- */
+.results h2 {
+  margin-bottom: 8px;
+}
 .card {
-  background: #fff; border: 1px solid #e5e7eb; border-radius: var(--radius);
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: var(--radius);
   padding: var(--pad);
 }
-.grid-3 { display: grid; gap: 16px; grid-template-columns: 1fr; }
-@media (min-width: 900px) { .grid-3 { grid-template-columns: 1fr 1fr 1fr; } }
+ul {
+  margin: 6px 0 0;
+  padding-left: 18px;
+}
 
-ul { margin: 6px 0 0; padding-left: 18px; }
+/* ---------- Usage Counter (Lesson 8 Step C) ---------- */
+.usage-counter {
+  color: #555;
+  font-size: 0.9em;
+  margin-top: 6px;
+}
 
-.footer { color: #666; text-align: center; padding-bottom: 40px; }
+/* ---------- Footer ---------- */
+.footer {
+  color: #666;
+  text-align: center;
+  padding-bottom: 40px;
+}
+
+/* ---------- Modal (Lesson 8 Step D) ---------- */
+.modal.hidden { display: none; }
+.modal {
+  position: fixed; inset: 0;
+  background: rgba(17,24,39,0.5);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 50;
+}
+.modal-dialog {
+  width: min(520px, 92vw);
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  padding: 20px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+  position: relative;
+}
+.modal-dialog h3 { margin: 0 0 8px; font-size: 20px; }
+.modal-sub { color: #555; margin: 0 0 12px; }
+.modal-note { color: #777; font-size: 0.85em; margin-top: 10px; }
+
+#emailInput {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  font: inherit;
+  margin-bottom: 10px;
+}
+
+.modal-close {
+  position: absolute;
+  right: 14px;
+  top: 10px;
+  border: none;
+  background: transparent;
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+  color: #666;
+}
+.modal-close:hover {
+  color: #111;
+}
+
+/* visually-hidden helper */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0,0,0,0);
+  border: 0;
+}
