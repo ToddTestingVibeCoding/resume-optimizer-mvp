@@ -236,6 +236,13 @@ if (rewriteBtn) {
       return;
     }
 
+     //ADD THIS BLOCK (Step B)
+    const used = getRewritesUsed();
+    if (used >= MAX_REWRITES_PER_DAY) {
+      showMessage("warn", "Daily limit reached. Please come back tomorrow or sign up to unlock more.");
+      return;
+    }
+
     // Read Lesson 7 controls
     const tone = (document.getElementById("tone")?.value || "Professional").toLowerCase();
     const seniority = (document.getElementById("seniority")?.value || "Mid").toLowerCase();
@@ -253,8 +260,14 @@ if (rewriteBtn) {
         .map(l => `<li>${l}</li>`)
         .join("");
 
-      if (summary) summary.innerHTML = `<h3>AI Suggested Bullets</h3><ul>${html}</ul>`;
-      showMessage("success", "AI rewrite complete. Review and adapt bullets to your real experience.");
+if (summary) summary.innerHTML = `<h3>AI Suggested Bullets</h3><ul>${html}</ul>`;
+
+incrementRewrites();
+updateUsageCounter();
+showMessage(
+  "success",
+  `AI rewrite complete. (${getRewritesUsed()}/${MAX_REWRITES_PER_DAY} used today)`
+);
     } catch (e) {
       if (summary) summary.innerHTML = "";
       showMessage("error", `Rewrite failed: ${e.message}`);
