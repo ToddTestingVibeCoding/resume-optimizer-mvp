@@ -2,117 +2,143 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1"
+  />
   <title>Resume Optimizer (MVP)</title>
+
+  <!-- Styles -->
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
   <header class="container-narrow">
-    <h1>Resume Optimizer (MVP)</h1>
-    <p class="subhead">Paste your resume and the job description. Analyze alignment or get AI-suggested bullets.</p>
+    <h1>Resume Optimizer</h1>
+    <p class="sub">
+      Paste your resume and a job description. Analyze alignment, then generate tailored bullets.
+    </p>
   </header>
 
-  <!-- Inputs -->
-  <main class="container">
-    <div class="input-col">
-      <h2>Step 1: Paste Resume</h2>
-      <textarea id="resume" placeholder="Paste your resume here..." rows="16"></textarea>
-    </div>
-    <div class="input-col">
-      <h2>Step 2: Paste Job Description</h2>
-      <textarea id="jd" placeholder="Paste the job description here..." rows="16"></textarea>
-    </div>
+  <!-- Step 1: Inputs -->
+  <main>
+    <section class="container">
+      <h2>Step 1 — Paste Your Text</h2>
+      <div class="grid-2">
+        <div>
+          <label for="resume"><strong>Your Resume</strong></label>
+          <textarea id="resume" rows="12" placeholder="Paste your resume text here..."></textarea>
+        </div>
+        <div>
+          <label for="jd"><strong>Job Description</strong></label>
+          <textarea id="jd" rows="12" placeholder="Paste the job description here..."></textarea>
+        </div>
+      </div>
+    </section>
+
+    <!-- Step 2: Controls + Actions -->
+    <section class="container-narrow">
+      <h2>Step 2 — Refine & Run</h2>
+
+      <!-- Controls (Lesson 7) -->
+      <!-- Commit: feat: add tone, seniority, and role controls to index.html -->
+      <div class="controls">
+        <div class="control">
+          <label for="tone"><strong>Tone</strong></label>
+          <select id="tone">
+            <option>Concise</option>
+            <option selected>Professional</option>
+            <option>Energetic</option>
+          </select>
+        </div>
+
+        <div class="control">
+          <label for="seniority"><strong>Seniority</strong></label>
+          <select id="seniority">
+            <option>Entry-level</option>
+            <option selected>Mid</option>
+            <option>Manager/Lead</option>
+          </select>
+        </div>
+
+        <div class="control">
+          <label for="role"><strong>Role focus</strong></label>
+          <select id="role">
+            <option selected>Engineering</option>
+            <option>Product</option>
+            <option>Operations</option>
+            <option>Sales</option>
+            <option>Marketing</option>
+            <option>Finance</option>
+            <option>HR</option>
+            <option>IT</option>
+            <option>Support</option>
+            <option>Design</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Actions -->
+      <div class="actions">
+        <button id="analyzeBtn" class="secondary">Analyze Alignment</button>
+        <button id="clearBtn" class="secondary">Clear</button>
+        <button id="rewriteBtn" class="ai-btn">Rewrite for Alignment (AI)</button>
+        <button id="copyBtn">Copy AI Bullets</button>
+        <button id="downloadBtn">Download as DOCX</button>
+      </div>
+
+      <!-- Usage counter (Lesson 8 Step C) -->
+      <!-- Commit: feat: add usage counter display under action buttons -->
+      <p id="usageCounter" class="usage-counter">0 / 5 rewrites used today</p>
+    </section>
+
+    <!-- Step 3: Results -->
+    <section class="container-narrow results">
+      <h2>Results</h2>
+
+      <!-- Status / error messages (Lesson 6) -->
+      <div id="messages"></div>
+
+      <div id="summary" class="card"></div>
+
+      <div class="grid-3">
+        <div class="card">
+          <h3>Top JD Keywords</h3>
+          <ul id="topJd"></ul>
+        </div>
+        <div class="card">
+          <h3>Missing (from Resume)</h3>
+          <ul id="missing"></ul>
+        </div>
+        <div class="card">
+          <h3>Suggested Additions</h3>
+          <ul id="suggestions"></ul>
+        </div>
+      </div>
+    </section>
   </main>
 
-<!-- Commit: feat: add tone, seniority, and role controls to index.html -->
-
-<!-- Refinement controls -->
-<div class="container-narrow controls">
-  <div class="control">
-    <label for="tone"><strong>Tone</strong></label>
-    <select id="tone">
-      <option>Concise</option>
-      <option selected>Professional</option>
-      <option>Energetic</option>
-    </select>
-  </div>
-
-  <div class="control">
-    <label for="seniority"><strong>Seniority</strong></label>
-    <select id="seniority">
-      <option>Entry-level</option>
-      <option selected>Mid</option>
-      <option>Manager/Lead</option>
-    </select>
-  </div>
-
-  <div class="control">
-    <label for="role"><strong>Role focus</strong></label>
-    <select id="role">
-      <option selected>Engineering</option>
-      <option>Product</option>
-      <option>Operations</option>
-      <option>Sales</option>
-      <option>Marketing</option>
-      <option>Finance</option>
-      <option>HR</option>
-      <option>IT</option>
-      <option>Support</option>
-      <option>Design</option>
-    </select>
-  </div>
-</div>
-  
-  <!-- Actions -->
-  <div class="container-narrow actions">
-    <button id="analyzeBtn">Analyze Alignment</button>
-    <button id="clearBtn" class="secondary">Clear</button>
-    <button id="rewriteBtn" class="ai-btn">Rewrite for Alignment (AI)</button>
-  </div>
-  <!-- Commit: feat: add usage counter display under action buttons -->
-<p id="usageCounter" style="color:#555; font-size:0.9em; margin-top:6px;">
-  0 / 5 rewrites used today
-</p>
-
-  <!-- Results -->
-  <section class="container-narrow results">
-    <h2>Results</h2>
-    <section class="container-narrow results">
-  <h2>Results</h2>
-
-  <!-- Status / error messages will appear here -->
-  <div id="messages"></div>
-
-  <div id="summary" class="card"></div>
-  ...
-    <div id="summary" class="card"></div>
-
-    <div class="grid-3">
-      <div class="card">
-        <h3>Top JD Keywords</h3>
-        <ul id="topJd"></ul>
-      </div>
-      <div class="card">
-        <h3>Missing in Resume</h3>
-        <ul id="missing"></ul>
-      </div>
-      <div class="card">
-        <h3>Suggested Additions</h3>
-        <ul id="suggestions"></ul>
-      </div>
-    </div>
-  </section>
-
-  <!-- Output actions -->
-  <div class="container-narrow actions">
-    <button id="copyBtn" class="secondary">Copy AI Bullets</button>
-    <button id="downloadBtn" class="secondary">Download as DOCX</button>
-  </div>
-
-  <footer class="container-narrow footer">
-    <small>For demo use only. AI should never fabricate experience. Keep edits factual.</small>
+  <footer class="footer container-narrow">
+    <small>Built in public • Daily Vibe Coding</small>
   </footer>
 
+  <!-- Email capture modal (Lesson 8 Step D) -->
+  <!-- Commit: feat: add email capture modal for extra rewrites -->
+  <div id="emailModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="emailModalTitle">
+    <div class="modal-dialog">
+      <button class="modal-close" id="closeEmailModal" aria-label="Close">×</button>
+      <h3 id="emailModalTitle">Get 3 extra rewrites today</h3>
+      <p class="modal-sub">Enter your email to unlock a few more and get occasional tips.</p>
+
+      <form id="emailForm">
+        <label for="emailInput" class="sr-only">Email</label>
+        <input id="emailInput" type="email" placeholder="you@example.com" required />
+        <button type="submit" class="ai-btn" id="emailSubmitBtn">Unlock +3</button>
+        <p class="modal-note">We won’t spam you. You can unsubscribe anytime.</p>
+      </form>
+    </div>
+  </div>
+
+  <!-- Scripts -->
   <script src="script.js"></script>
 </body>
 </html>
