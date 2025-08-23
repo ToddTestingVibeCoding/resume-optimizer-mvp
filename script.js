@@ -1,6 +1,6 @@
 // ================================
 // Resume Optimizer - script.js
-// Complete version (Lessons 1–8)
+// Complete version (Lessons 1–8 + Step D)
 // ================================
 
 // ---------- Keyword analysis (no AI) ----------
@@ -61,27 +61,44 @@ function renderList(el, items, formatter = (x)=>x) {
   }
 }
 
-// ---------- Lesson 8: Usage tracking (daily limit) ----------
-const MAX_REWRITES_PER_DAY = 5;
+// ---------- Lesson 8: Usage tracking (daily limit + bonus via email modal) ----------
+const BASE_REWRITES_PER_DAY = 5;
+const BONUS_REWRITES_ON_EMAIL = 3;
 
-function getTodayKey() {
+function todayStamp() {
   const d = new Date();
-  return `rewrites_${d.getFullYear()}_${d.getMonth()+1}_${d.getDate()}`;
+  return `${d.getFullYear()}_${d.getMonth()+1}_${d.getDate()}`;
 }
+function keyUsed() { return `rewrites_used_${todayStamp()}`; }
+function keyBonus() { return `rewrites_bonus_${todayStamp()}`; }
+
 function getRewritesUsed() {
-  return parseInt(localStorage.getItem(getTodayKey()) || "0", 10);
+  return parseInt(localStorage.getItem(keyUsed()) || "0", 10);
+}
+function setRewritesUsed(n) {
+  localStorage.setItem(keyUsed(), String(n));
 }
 function incrementRewrites() {
-  const key = getTodayKey();
-  const current = getRewritesUsed();
-  const next = current + 1;
-  localStorage.setItem(key, next);
+  const next = getRewritesUsed() + 1;
+  setRewritesUsed(next);
   return next;
 }
+function getBonusForToday() {
+  return parseInt(localStorage.getItem(keyBonus()) || "0", 10);
+}
+function grantBonusForToday(n = BONUS_REWRITES_ON_EMAIL) {
+  // only increase if not already greater
+  const current = getBonusForToday();
+  if (n > current) localStorage.setItem(keyBonus(), String(n));
+}
+function getMaxForToday() {
+  return BASE_REWRITES_PER_DAY + getBonusForToday();
+}
+
 function updateUsageCounter() {
   const el = document.getElementById("usageCounter");
   if (el) {
-    el.textContent = `${getRewritesUsed()} / ${MAX_REWRITES_PER_DAY} rewrites used today`;
+    el.textContent = `${getRewritesUsed()} / ${getMaxForToday()} rewrites used today`;
   }
 }
 
@@ -146,7 +163,7 @@ function spinnerHTML(text = "Working…") {
   if (jdEl) jdEl.addEventListener("input", save);
 })();
 
-// Initialize the usage counter on load (safe because script tag is at end of <body>)
+// Initialize usage counter on load
 updateUsageCounter();
 
 // ---------- Analyze Alignment ----------
@@ -213,6 +230,57 @@ if (clearBtn) {
   });
 }
 
+// ---------- Email Modal (Step D) ----------
+const emailModal = document.getElementById("emailModal");
+const closeEmailModal = document.getElementById("closeEmailModal");
+const emailForm = document.getElementById("emailForm");
+const emailInput = document.getElementById("emailInput");
+const emailSubmitBtn = document.getElementById("emailSubmitBtn");
+
+function isValidEmail(s) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(s || "").trim());
+}
+function openEmailModal() {
+  if (!emailModal) return;
+  emailModal.classList.remove("hidden");
+  // focus the input for accessibility
+  setTimeout(() => emailInput?.focus(), 50);
+}
+function closeEmailCapture() {
+  if (!emailModal) return;
+  emailModal.classList.add("hidden");
+}
+
+// Close modal handlers
+if (closeEmailModal) closeEmailModal.addEventListener("click", closeEmailCapture);
+if (emailModal) {
+  emailModal.addEventListener("click", (e) => {
+    // click on backdrop (outside dialog) closes
+    if (e.target === emailModal) closeEmailCapture();
+  });
+}
+if (emailForm) {
+  emailForm.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const email = emailInput?.value || "";
+    if (!isValidEmail(email)) {
+      showMessage("warn", "Please enter a valid email address.");
+      emailInput?.focus();
+      return;
+    }
+    try {
+      // store email (lite account) and grant today's bonus
+      localStorage.setItem("user_email", email.trim());
+      grantBonusForToday(BONUS_REWRITES_ON_EMAIL);
+      showMessage("success", `Thanks! +${BONUS_REWRITES_ON_EMAIL} extra rewrites unlocked for today.`);
+      updateUsageCounter();
+      closeEmailCapture();
+    } catch (err) {
+      showMessage("error", "Could not save your email locally. Try again.");
+    }
+  });
+}
+
 // ---------- AI Rewrite (secure backend) ----------
 async function callRewriteAPI(resume, jd, opts = {}) {
   const r = await fetch("/api/rewrite", {
@@ -243,10 +311,18 @@ if (rewriteBtn) {
       return;
     }
 
-    // Lesson 8: usage gating BEFORE calling the API
+    // Lesson 8 gate: compare to max including bonus
     const used = getRewritesUsed();
-    if (used >= MAX_REWRITES_PER_DAY) {
-      showMessage("warn", "Daily limit reached. Please come back tomorrow or sign up to unlock more.");
+    const max = getMaxForToday();
+    if (used >= max) {
+      // If user has no saved email yet, prompt the modal. Otherwise, just inform limit.
+      const hasEmail = !!localStorage.getItem("user_email");
+      if (!hasEmail) {
+        openEmailModal();
+        showMessage("info", "Enter your email to unlock a few more rewrites today.");
+      } else {
+        showMessage("warn", "Daily limit reached. Please come back tomorrow.");
+      }
       return;
     }
 
@@ -269,10 +345,10 @@ if (rewriteBtn) {
 
       if (summary) summary.innerHTML = `<h3>AI Suggested Bullets</h3><ul>${html}</ul>`;
 
-      // Lesson 8: increment + update counter + success message with tally
+      // increment + update + success
       incrementRewrites();
       updateUsageCounter();
-      showMessage("success", `AI rewrite complete. (${getRewritesUsed()}/${MAX_REWRITES_PER_DAY} used today)`);
+      showMessage("success", `AI rewrite complete. (${getRewritesUsed()}/${getMaxForToday()} used today)`);
     } catch (e) {
       if (summary) summary.innerHTML = "";
       showMessage("error", `Rewrite failed: ${e.message}`);
