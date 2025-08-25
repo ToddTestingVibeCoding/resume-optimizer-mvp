@@ -1,6 +1,6 @@
 // ================================
 // Resume Optimizer - script.js
-// Complete version (Lessons 1–8 + Step D)
+// Complete version (Lessons 1–9 Step A)
 // ================================
 
 // ---------- Keyword analysis (no AI) ----------
@@ -69,7 +69,7 @@ function todayStamp() {
   const d = new Date();
   return `${d.getFullYear()}_${d.getMonth()+1}_${d.getDate()}`;
 }
-function keyUsed() { return `rewrites_used_${todayStamp()}`; }
+function keyUsed()  { return `rewrites_used_${todayStamp()}`; }
 function keyBonus() { return `rewrites_bonus_${todayStamp()}`; }
 
 function getRewritesUsed() {
@@ -87,7 +87,6 @@ function getBonusForToday() {
   return parseInt(localStorage.getItem(keyBonus()) || "0", 10);
 }
 function grantBonusForToday(n = BONUS_REWRITES_ON_EMAIL) {
-  // only increase if not already greater
   const current = getBonusForToday();
   if (n > current) localStorage.setItem(keyBonus(), String(n));
 }
@@ -97,9 +96,7 @@ function getMaxForToday() {
 
 function updateUsageCounter() {
   const el = document.getElementById("usageCounter");
-  if (el) {
-    el.textContent = `${getRewritesUsed()} / ${getMaxForToday()} rewrites used today`;
-  }
+  if (el) el.textContent = `${getRewritesUsed()} / ${getMaxForToday()} rewrites used today`;
 }
 
 // ---------- Messaging helpers ----------
@@ -230,12 +227,11 @@ if (clearBtn) {
   });
 }
 
-// ---------- Email Modal (Step D) ----------
+// ---------- Email Modal (Lesson 8 Step D) ----------
 const emailModal = document.getElementById("emailModal");
 const closeEmailModal = document.getElementById("closeEmailModal");
 const emailForm = document.getElementById("emailForm");
 const emailInput = document.getElementById("emailInput");
-const emailSubmitBtn = document.getElementById("emailSubmitBtn");
 
 function isValidEmail(s) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(s || "").trim());
@@ -243,7 +239,6 @@ function isValidEmail(s) {
 function openEmailModal() {
   if (!emailModal) return;
   emailModal.classList.remove("hidden");
-  // focus the input for accessibility
   setTimeout(() => emailInput?.focus(), 50);
 }
 function closeEmailCapture() {
@@ -251,12 +246,12 @@ function closeEmailCapture() {
   emailModal.classList.add("hidden");
 }
 
-// Close modal handlers
-if (closeEmailModal) closeEmailModal.addEventListener("click", closeEmailCapture);
+if (document.getElementById("closeEmailModal")) {
+  document.getElementById("closeEmailModal").addEventListener("click", closeEmailCapture);
+}
 if (emailModal) {
   emailModal.addEventListener("click", (e) => {
-    // click on backdrop (outside dialog) closes
-    if (e.target === emailModal) closeEmailCapture();
+    if (e.target === emailModal) closeEmailCapture(); // click backdrop to close
   });
 }
 if (emailForm) {
@@ -269,13 +264,12 @@ if (emailForm) {
       return;
     }
     try {
-      // store email (lite account) and grant today's bonus
       localStorage.setItem("user_email", email.trim());
       grantBonusForToday(BONUS_REWRITES_ON_EMAIL);
       showMessage("success", `Thanks! +${BONUS_REWRITES_ON_EMAIL} extra rewrites unlocked for today.`);
       updateUsageCounter();
       closeEmailCapture();
-    } catch (err) {
+    } catch {
       showMessage("error", "Could not save your email locally. Try again.");
     }
   });
@@ -311,11 +305,10 @@ if (rewriteBtn) {
       return;
     }
 
-    // Lesson 8 gate: compare to max including bonus
+    // Usage gate (includes bonus)
     const used = getRewritesUsed();
     const max = getMaxForToday();
     if (used >= max) {
-      // If user has no saved email yet, prompt the modal. Otherwise, just inform limit.
       const hasEmail = !!localStorage.getItem("user_email");
       if (!hasEmail) {
         openEmailModal();
@@ -345,7 +338,6 @@ if (rewriteBtn) {
 
       if (summary) summary.innerHTML = `<h3>AI Suggested Bullets</h3><ul>${html}</ul>`;
 
-      // increment + update + success
       incrementRewrites();
       updateUsageCounter();
       showMessage("success", `AI rewrite complete. (${getRewritesUsed()}/${getMaxForToday()} used today)`);
@@ -425,4 +417,52 @@ if (downloadBtn) {
   });
 
   downloadBtn.addEventListener("click", handler);
+}
+
+/* ---------- Lesson 9: Resume File Upload (Step A) ---------- */
+/* Commit: feat: wire resume file upload to extraction API with autosave and basic validation */
+const resumeUpload = document.getElementById("resumeUpload");
+if (resumeUpload) {
+  resumeUpload.addEventListener("change", async () => {
+    const file = resumeUpload.files[0];
+    if (!file) return;
+
+    // Basic guards
+    if (file.size > 8 * 1024 * 1024) {
+      showMessage("warn", "That file is quite large. Try a smaller file or plain text.");
+      return;
+    }
+    const okTypes = [
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "application/pdf",
+      "text/plain"
+    ];
+    if (!okTypes.includes(file.type) && !/\.(docx|pdf|txt)$/i.test(file.name)) {
+      showMessage("warn", "Please upload a .docx, .pdf, or .txt file.");
+      return;
+    }
+
+    clearMessages();
+    showMessage("info", "Extracting text from file...");
+
+    const formData = new FormData();
+    formData.append("file", file);
+
+    try {
+      const r = await fetch("/api/extract", { method: "POST", body: formData });
+      if (!r.ok) {
+        const t = await r.text();
+        throw new Error(t);
+      }
+      const data = await r.json();
+      const resumeEl = document.getElementById("resume");
+      if (resumeEl) {
+        resumeEl.value = data.text || "";
+        try { localStorage.setItem("resume_text", resumeEl.value); } catch {}
+      }
+      showMessage("success", "File text extracted and added to your resume.");
+    } catch (err) {
+      showMessage("error", "Upload failed: " + err.message);
+    }
+  });
 }
