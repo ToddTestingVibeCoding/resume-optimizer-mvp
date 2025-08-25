@@ -1,45 +1,75 @@
-/* Commit: feat(api): add file text extraction for resume upload */
-import formidable from "formidable";
-import fs from "fs/promises";
-import mammoth from "mammoth";
-import pdfParse from "pdf-parse";
+// api/extract.js
+const fs = require("fs");
+const path = require("path");
+const formidable = require("formidable");
+const mammoth = require("mammoth");
+const pdfParse = require("pdf-parse");
 
-export const config = {
-  api: { bodyParser: false }, // let formidable handle multipart
-};
-
-export default async function handler(req, res) {
+module.exports = async (req, res) => {
   if (req.method !== "POST") {
-    res.status(405).json({ error: "Method not allowed" });
-    return;
+    res.statusCode = 405;
+    return res.json({ error: "Method Not Allowed" });
   }
 
-  const form = formidable({ multiples: false });
+  try {
+    const form = formidable({
+      multiples: true,           // always return arrays
+      maxFileSize: 8 * 1024 * 1024,
+      keepExtensions: true,
+    });
 
-  form.parse(req, async (err, fields, files) => {
-    if (err) {
-      res.status(500).json({ error: "Upload failed" });
-      return;
+    // ✔️ v3 returns an object, not an array
+    const { fields, files } = await form.parse(req);
+
+    // Try common field names, then fall back to first file in the object
+    let file =
+      (files.file && (Array.isArray(files.file) ? files.file[0] : files.file)) ||
+      (files.resume && (Array.isArray(files.resume) ? files.resume[0] : files.resume)) ||
+      (files.upload && (Array.isArray(files.upload) ? files.upload[0] : files.upload)) ||
+      // generic fallback: first value in files
+      (() => {
+        const vals = Object.values(files || {});
+        if (!vals.length) return null;
+        return Array.isArray(vals[0]) ? vals[0][0] : vals[0];
+      })();
+
+    if (!file || !file.filepath) {
+      res.statusCode = 400;
+      return res.json({ error: "No file uploaded or unreadable payload" });
     }
 
-    try {
-      const file = files.file;
-      const buffer = await fs.readFile(file.filepath);
+    const filepath = file.filepath;
+    const orig = file.originalFilename || file.newFilename || "";
+    const ext = (path.extname(orig).toLowerCase()) || "";
+    const mimetype = (file.mimetype || "").toLowerCase();
 
-      let text = "";
-      if (file.originalFilename.endsWith(".docx")) {
-        const result = await mammoth.extractRawText({ buffer });
-        text = result.value;
-      } else if (file.originalFilename.endsWith(".pdf")) {
-        const result = await pdfParse(buffer);
-        text = result.text;
-      } else {
-        text = buffer.toString("utf8");
-      }
+    let text = "";
 
-      res.status(200).json({ text });
-    } catch (e) {
-      res.status(500).json({ error: "Extraction failed", detail: e.message });
+    if (ext === ".docx" || mimetype.includes("wordprocessingml")) {
+      const buffer = fs.readFileSync(filepath);
+      const result = await mammoth.extractRawText({ buffer });
+      text = (result && result.value) || "";
+    } else if (ext === ".pdf" || mimetype.includes("pdf")) {
+      const buffer = fs.readFileSync(filepath);
+      const result = await pdfParse(buffer);
+      text = (result && result.text) || "";
+    } else if (ext === ".txt" || mimetype.startsWith("text/")) {
+      text = fs.readFileSync(filepath, "utf8");
+    } else {
+      res.statusCode = 415;
+      return res.json({ error: "Unsupported file type. Please upload .docx, .pdf, or .txt." });
     }
-  });
-}
+
+    text = String(text || "")
+      .replace(/\r/g, "")
+      .replace(/\t/g, " ")
+      .replace(/[ \u00A0]+/g, " ")
+      .trim();
+
+    res.setHeader("Content-Type", "application/json");
+    return res.status(200).send(JSON.stringify({ text }));
+  } catch (err) {
+    res.statusCode = 500;
+    return res.json({ error: "Extraction failed", detail: String(err && err.message || err) });
+  }
+};
