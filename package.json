@@ -1,8 +1,17 @@
 {
   "name": "resume-optimizer-mvp",
   "version": "1.0.0",
-  "private": true,
+  "description": "",
+  "main": ":api:rewrite.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
   "dependencies": {
-    "docx": "^9.2.2"
+    "formidable": "^3.5.4",
+    "mammoth": "^1.10.0",
+    "pdf-parse": "^1.1.1"
   }
 }
