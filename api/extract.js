@@ -1,7 +1,10 @@
 // api/extract.js
 const fs = require("fs");
 const path = require("path");
-const formidable = require("formidable");
+
+// ✅ v3: pull the named export { formidable }
+const { formidable } = require("formidable");
+
 const mammoth = require("mammoth");
 const pdfParse = require("pdf-parse");
 
@@ -12,21 +15,21 @@ module.exports = async (req, res) => {
   }
 
   try {
+    // ✅ v3: call the formidable() factory to get a form instance
     const form = formidable({
-      multiples: true,           // always return arrays
-      maxFileSize: 8 * 1024 * 1024,
+      multiples: true,            // always return arrays for files
+      maxFileSize: 8 * 1024 * 1024, // 8MB
       keepExtensions: true,
     });
 
-    // ✔️ v3 returns an object, not an array
+    // ✅ v3 promise API: returns { fields, files }
     const { fields, files } = await form.parse(req);
 
-    // Try common field names, then fall back to first file in the object
+    // Try common field names, then fall back to first file
     let file =
       (files.file && (Array.isArray(files.file) ? files.file[0] : files.file)) ||
       (files.resume && (Array.isArray(files.resume) ? files.resume[0] : files.resume)) ||
       (files.upload && (Array.isArray(files.upload) ? files.upload[0] : files.upload)) ||
-      // generic fallback: first value in files
       (() => {
         const vals = Object.values(files || {});
         if (!vals.length) return null;
