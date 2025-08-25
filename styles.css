@@ -43,6 +43,15 @@ textarea {
   resize: vertical;
 }
 
+/* Commit: style: add styling for file upload input */
+.upload-block {
+  margin-bottom: 12px;
+}
+#resumeUpload {
+  display: block;
+  margin-top: 6px;
+}
+
 label {
   display: block;
   margin-bottom: 6px;
