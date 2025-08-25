@@ -1,9 +1,9 @@
 // api/extract.js
-// Callback-style formidable v3 + debug echo of parsed keys
+// Production: formidable v3 (callback style) + .docx/.pdf/.txt extraction on Vercel
 
 const fs = require("fs");
 const path = require("path");
-const { formidable } = require("formidable");
+const { formidable } = require("formidable"); // v3 import
 
 function firstFileFrom(files) {
   if (!files) return null;
@@ -15,6 +15,7 @@ function firstFileFrom(files) {
 }
 
 function getFilepath(fileObj) {
+  // formidable v3 stores temp file at .filepath
   return fileObj?.filepath || fileObj?.path || null;
 }
 
@@ -36,8 +37,8 @@ module.exports = (req, res) => {
     res.statusCode = 400;
     return res.json({
       error: "Bad request",
-      detail: `Expected multipart/form-data (got "${ct || "none"}"). Use the Upload button.`,
-      debug: { contentType: ct }
+      detail:
+        `Expected multipart/form-data (got "${ct || "none"}"). Use the Upload button.`,
     });
   }
 
@@ -48,16 +49,10 @@ module.exports = (req, res) => {
   });
 
   form.parse(req, async (err, fields, files) => {
-    const debug = {
-      contentType: ct,
-      fieldsKeys: Object.keys(fields || {}),
-      filesKeys: Object.keys(files || {})
-    };
-
     try {
       if (err) {
         res.statusCode = 500;
-        return res.json({ error: "Extraction failed", detail: err.message, debug });
+        return res.json({ error: "Extraction failed", detail: err.message });
       }
 
       const fileObj = firstFileFrom(files);
@@ -65,8 +60,8 @@ module.exports = (req, res) => {
         res.statusCode = 400;
         return res.json({
           error: "No file uploaded",
-          detail: "Could not find an uploaded file field. Try selecting a .docx, .pdf, or .txt via the Upload button.",
-          debug
+          detail:
+            "Could not find an uploaded file field. Try selecting a .docx, .pdf, or .txt via the Upload button.",
         });
       }
 
@@ -76,7 +71,6 @@ module.exports = (req, res) => {
         return res.json({
           error: "Extraction failed",
           detail: "Temporary upload filepath missing.",
-          debug: { ...debug, fileObjSeen: Object.keys(fileObj) }
         });
       }
 
@@ -92,9 +86,11 @@ module.exports = (req, res) => {
       } else if (ext === ".docx") {
         text = await parseDOCX(buf);
       } else {
+        // Fallback: sniff magic bytes for PDF, else try DOCX, else utf8
         const head = buf.slice(0, 4).toString("hex");
-        if (head.startsWith("25504446")) text = await parsePDF(buf);
-        else {
+        if (head.startsWith("25504446")) {
+          text = await parsePDF(buf);
+        } else {
           try { text = await parseDOCX(buf); }
           catch { text = buf.toString("utf8"); }
         }
@@ -104,16 +100,16 @@ module.exports = (req, res) => {
         res.statusCode = 422;
         return res.json({
           error: "Extraction failed",
-          detail: "We couldn’t extract any text. Try a simpler .docx/.pdf or a .txt file.",
-          debug: { ...debug, filename }
+          detail:
+            "We couldn’t extract any text. Try a simpler .docx/.pdf or a .txt file.",
         });
       }
 
       res.setHeader("Content-Type", "application/json");
-      return res.end(JSON.stringify({ ok: true, text, debug: { ...debug, filename } }));
+      return res.end(JSON.stringify({ ok: true, text }));
     } catch (e) {
       res.statusCode = 500;
-      return res.json({ error: "Extraction failed", detail: e.message, debug });
+      return res.json({ error: "Extraction failed", detail: e.message });
     }
   });
 };
