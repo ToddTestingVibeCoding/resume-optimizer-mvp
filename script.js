@@ -61,6 +61,30 @@ function updateUsageCounter() {
 }
 updateUsageCounter();
 
+/* --- Character counters (Lesson 11) --- */
+function updateCharCount(textareaId, counterId) {
+  const ta = document.getElementById(textareaId);
+  const out = document.getElementById(counterId);
+  if (!ta || !out) return;
+  const len = (ta.value || "").length;
+  out.textContent = `${len.toLocaleString()} characters`;
+}
+function wireCharCounters() {
+  const pairs = [
+    ["resume", "resumeCount"],
+    ["jd", "jdCount"],
+    ["jobDesc", "jdCount"], // fallback if your JD field uses id="jobDesc"
+  ];
+  for (const [taId, outId] of pairs) {
+    const ta = document.getElementById(taId);
+    if (!ta) continue;
+    const handler = () => updateCharCount(taId, outId);
+    ta.addEventListener("input", handler);
+    handler(); // initialize immediately
+  }
+}
+document.addEventListener("DOMContentLoaded", wireCharCounters);
+
 // ---------- Loading helpers ----------
 function withLoading(btn, labelWhileLoading, fn) {
   return async function (...args) {
