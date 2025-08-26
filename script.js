@@ -61,24 +61,28 @@ function updateUsageCounter() {
 }
 updateUsageCounter();
 
-// ---------- Loading helper ----------
+// ---------- Loading helpers ----------
 function withLoading(btn, labelWhileLoading, fn) {
   return async function (...args) {
-    let original;
+    let originalHTML;
     if (btn) {
       btn.disabled = true;
-      original = btn.textContent;
-      btn.textContent = labelWhileLoading;
+      originalHTML = btn.innerHTML;
+      btn.innerHTML = `<span class="spinner"></span>${labelWhileLoading}`;
     }
     try {
       return await fn(...args);
     } finally {
       if (btn) {
         btn.disabled = false;
-        btn.textContent = original;
+        btn.innerHTML = originalHTML;
       }
     }
   };
+}
+
+function spinnerHTML(text = "Working…") {
+  return `<span class="spinner"></span>${text}`;
 }
 
 // ---------- Utilities ----------
@@ -91,34 +95,59 @@ function getCurrentBullets() {
 // ==============================
 // Upload: Resume → /api/extract
 // ==============================
+// ---------- Resume file upload → /api/extract (with spinner on button) ----------
 const uploadBtn = document.getElementById("uploadBtn");
 const resumeFileInput = document.getElementById("resumeFile");
 
 if (uploadBtn && resumeFileInput) {
+  // Clicking the visible button opens the hidden file picker
   uploadBtn.addEventListener("click", () => resumeFileInput.click());
 
+  // When a file is chosen, send it to the backend
   resumeFileInput.addEventListener("change", async () => {
     const file = resumeFileInput.files?.[0];
     if (!file) {
       showMessage("warn", "No file selected.");
       return;
     }
+
+    // Show spinner on the visible Upload button during the request
+    let originalHTML = uploadBtn.innerHTML;
+    uploadBtn.disabled = true;
+    uploadBtn.innerHTML = spinnerHTML("Uploading…");
+
     const formData = new FormData();
+    // IMPORTANT: key must be "file" (backend expects this)
     formData.append("file", file);
 
     try {
-      showMessage("info", "Extracting text from resume file…");
-      const r = await fetch("/api/extract", { method: "POST", body: formData });
-      if (!r.ok) throw new Error(await r.text());
+      showMessage("info", "Extracting text from file...");
+      const r = await fetch("/api/extract", {
+        method: "POST",
+        body: formData, // no manual Content-Type header
+      });
+      if (!r.ok) {
+        const t = await r.text();
+        throw new Error(t);
+      }
       const data = await r.json();
 
       const resumeEl = document.getElementById("resume");
       if (resumeEl) resumeEl.value = data.text || "";
-      showMessage("success", "Resume text extracted.");
+
+      // Kick char-counter if present
+      if (typeof updateCharCount === "function") {
+        updateCharCount("resume", "resumeCount");
+      }
+
+      showMessage("success", "File text extracted and added to your resume.");
     } catch (err) {
       showMessage("error", "Upload failed: " + (err?.message || err));
     } finally {
-      resumeFileInput.value = ""; // allow same-file reselect
+      // Restore button and allow re-selecting the same file
+      uploadBtn.disabled = false;
+      uploadBtn.innerHTML = originalHTML;
+      resumeFileInput.value = "";
     }
   });
 }
@@ -220,67 +249,50 @@ async function callRewriteAPI(resume, jd, options = {}) {
 }
 
 const rewriteBtn = document.getElementById("rewriteBtn");
+
 if (rewriteBtn) {
   const handler = withLoading(rewriteBtn, "Rewriting…", async () => {
     const resume = (document.getElementById("resume")?.value || "").trim();
     const jd =
-      (document.getElementById("jobDesc")?.value ||
-        document.getElementById("jd")?.value ||
-        "").trim();
+      (document.getElementById("jd")?.value ||
+       document.getElementById("jobDesc")?.value || "")
+      .trim();
 
     if (!resume || !jd) {
-      showMessage("warn", "Please paste both Resume and Job Description first.");
+      showMessage("warn", "Please paste both Resume and Job Description.");
       return;
     }
 
-    // daily limit
-    const used = getRewritesUsed();
-    if (used >= MAX_REWRITES_PER_DAY) {
-      showMessage(
-        "warn",
-        "Daily limit reached. Please come back tomorrow or sign up to unlock more."
-      );
-      return;
-    }
-
-    // Optional controls from Lesson 7 (safe defaults if not present)
+    // Optional: Lesson 7 controls (only if you have them in your HTML)
     const tone = (document.getElementById("tone")?.value || "Professional").toLowerCase();
     const seniority = (document.getElementById("seniority")?.value || "Mid").toLowerCase();
-    const role = (document.getElementById("role")?.value || "General").toLowerCase();
+    const role = (document.getElementById("role")?.value || "Engineering").toLowerCase();
+
+    // Optional: Lesson 8 daily limit (only if present in your code)
+    if (typeof getRewritesUsed === "function" && typeof MAX_REWRITES_PER_DAY !== "undefined") {
+      const used = getRewritesUsed();
+      if (used >= MAX_REWRITES_PER_DAY) {
+        showMessage("warn", "Daily limit reached. Please come back tomorrow or sign up to unlock more.");
+        return;
+      }
+    }
+
+    const bullets = await callRewriteAPI(resume, jd, { tone, seniority, role });
+    const html = bullets
+      .split("\n")
+      .map(l => l.trim())
+      .filter(Boolean)
+      .map(l => l.replace(/^[-•*\d.)\s]+/, ""))
+      .map(l => `<li>${l}</li>`)
+      .join("");
 
     const summary = document.getElementById("summary");
-    if (summary) summary.innerHTML = `<div class="card">${spinnerHTML("Rewriting with AI…")}</div>`;
+    if (summary) summary.innerHTML = `<h3>AI Suggested Bullets</h3><ul>${html}</ul>`;
 
-    try {
-      const bulletsText = await callRewriteAPI(resume, jd, { tone, seniority, role });
+    if (typeof incrementRewrites === "function") incrementRewrites();
+    if (typeof updateUsageCounter === "function") updateUsageCounter();
 
-      const html = bulletsText
-        .split("\n")
-        .map(l => l.trim())
-        .filter(Boolean)
-        .map(l => l.replace(/^[-•*\d.)\s]+/, "")) // strip any leading markers
-        .map(l => `<li>${l}</li>`)
-        .join("");
-
-      if (summary) {
-        summary.innerHTML = `
-          <div class="card">
-            <h3>AI Suggested Bullets</h3>
-            <ul>${html}</ul>
-          </div>
-        `;
-      }
-
-      incrementRewrites();
-      updateUsageCounter();
-      showMessage(
-        "success",
-        `AI rewrite complete. (${getRewritesUsed()}/${MAX_REWRITES_PER_DAY} used today)`
-      );
-    } catch (e) {
-      if (summary) summary.innerHTML = "";
-      showMessage("error", `Rewrite failed: ${e.message}`);
-    }
+    showMessage("success", "AI rewrite complete.");
   });
 
   rewriteBtn.addEventListener("click", handler);
