@@ -22,6 +22,52 @@ function showMessage(type, text) {
   }, 5000);
 }
 
+// --- Friendly error mapping ---
+function friendlyError(err) {
+  try {
+    // Strings or Error objects
+    const raw = typeof err === "string" ? err : (err?.message || "");
+    if (!raw) return "Something went wrong. Please try again.";
+
+    // Common API problems
+    if (/invalid_api_key|Incorrect API key/i.test(raw)) {
+      return "API key issue: check your OpenAI key in Vercel → Settings → Environment Variables.";
+    }
+    if (/rate[_\s-]?limit|rpm|requests per min/i.test(raw)) {
+      return "We’re hitting a rate limit. Please wait ~30–60 seconds and try again.";
+    }
+    if (/model.*not.*found|unsupported.*model/i.test(raw)) {
+      return "The selected AI model isn’t available. We’ll switch models on the backend.";
+    }
+    if (/FUNCTION_INVOCATION_FAILED|vercel/i.test(raw)) {
+      return "The server function failed to run. Try again in a moment.";
+    }
+    if (/413|payload too large/i.test(raw)) {
+      return "That file or text is too large to process. Try a smaller file or trim the text.";
+    }
+    if (/415|unsupported media/i.test(raw)) {
+      return "That file type isn’t supported. Please upload a .docx, .pdf, or .txt file.";
+    }
+    if (/No file uploaded/i.test(raw)) {
+      return "No file was received. Pick a .docx, .pdf, or .txt with the Upload button.";
+    }
+
+    // Sometimes server sends JSON; try to extract message
+    try {
+      const asJSON = JSON.parse(raw);
+      if (asJSON?.error?.message) return asJSON.error.message;
+      if (asJSON?.detail?.error?.message) return asJSON.detail.error.message;
+      if (asJSON?.detail) return String(asJSON.detail);
+      if (asJSON?.error) return String(asJSON.error);
+    } catch (_) {}
+
+    // Fallback: show trimmed error
+    return raw.replace(/["{}\\]+/g, "").slice(0, 240);
+  } catch (_) {
+    return "Unexpected error. Please try again.";
+  }
+}
+
 function spinnerHTML(text = "Working…") {
   return `<span class="spinner"></span>${text}`;
 }
@@ -166,7 +212,7 @@ if (uploadBtn && resumeFileInput) {
 
       showMessage("success", "File text extracted and added to your resume.");
     } catch (err) {
-      showMessage("error", "Upload failed: " + (err?.message || err));
+      showMessage("error", friendlyError(err));
     } finally {
       // Restore button and allow re-selecting the same file
       uploadBtn.disabled = false;
@@ -206,7 +252,7 @@ if (jdUploadBtn && jdFileInput) {
       if (jdEl) jdEl.value = data.text || "";
       showMessage("success", "Job description text extracted.");
     } catch (err) {
-      showMessage("error", "Upload failed: " + (err?.message || err));
+      showMessage("error", friendlyError(err));
     } finally {
       jdFileInput.value = "";
     }
@@ -250,7 +296,7 @@ if (analyzeBtn) {
       }
       showMessage("success", "Alignment analysis complete.");
     } catch (err) {
-      showMessage("error", "Analysis failed: " + (err?.message || err));
+      showMessage("error", friendlyError(err));
     }
   });
 
@@ -337,7 +383,7 @@ if (copyBtn) {
       await navigator.clipboard.writeText(bullets.join("\n"));
       showMessage("success", "Copied AI bullets to clipboard.");
     } catch (err) {
-      showMessage("error", "Copy failed: " + err.message);
+     showMessage("error", friendlyError(err));
     }
   });
 }
@@ -377,7 +423,7 @@ if (downloadBtn) {
 
       showMessage("success", "Downloaded DOCX. Open it in Word/Pages.");
     } catch (e) {
-      showMessage("error", e.message);
+      showMessage("error", friendlyError(err));
     }
   });
 
