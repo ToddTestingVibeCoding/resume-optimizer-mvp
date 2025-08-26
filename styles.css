@@ -102,13 +102,7 @@ textarea{
 }
 
 /* Small helper text (char counts, usage, etc.) */
-.char-count,
-.usage-counter{
-  display:block;
-  margin-top: 6px;
-  color: var(--muted);
-  font-size: 12px;
-}
+.char-count { display:block; margin-top:6px; color:#b5bdd1; font-size:12px; }
 
 /* --- Two-column editor layout on wide screens --- */
 .editor-grid{
