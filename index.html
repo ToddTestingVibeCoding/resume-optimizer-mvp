@@ -4,47 +4,51 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Resume Optimizer (MVP)</title>
-  <link rel="stylesheet" href="styles.css" />
+
+  <!-- Fonts + Styles -->
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
+
+  <!-- Centered site header -->
   <header class="site-header">
     <h1>Resume Optimizer</h1>
     <p class="tagline">Paste your resume + job description → get tailored, impact-focused bullets.</p>
   </header>
 
   <main class="container">
-    <!-- Messages / Alerts -->
+    <!-- Alerts / inline messages -->
     <div id="messages" aria-live="polite"></div>
 
-    <!-- Step 1 -->
-    <section>
-      <h2>Step 1 — Paste or Upload Your Resume</h2>
-      <p class="muted">Paste your resume text or upload a .docx / .pdf / .txt file.</p>
+    <!-- Editors -->
+    <section class="editor-grid">
+      <!-- Resume editor -->
+      <div class="editor">
+        <h2>Step 1 — Paste Your Resume</h2>
+        <label for="resume" class="sr-only">Resume</label>
+        <textarea id="resume" rows="16" placeholder="Paste your resume here…"></textarea>
+        <small class="char-count" id="resumeCount">0 characters</small>
 
-      <label for="resume" class="sr-only">Resume</label>
-      <textarea id="resume" rows="16" placeholder="Paste your resume here…"></textarea>
-      <small class="char-count" id="resumeCount">0 characters</small>
-
-      <div class="actions">
-        <!-- Hidden input; visible button triggers it -->
+        <!-- Hidden file input + visible trigger -->
         <input id="resumeFile" type="file" accept=".docx,.pdf,.txt" style="display:none" />
         <button id="uploadBtn" type="button" class="secondary">Upload Resume File</button>
+
+        <p class="hint">Supported: .docx, .pdf, .txt</p>
+      </div>
+
+      <!-- Job Description editor -->
+      <div class="editor">
+        <h2>Step 2 — Paste Job Description</h2>
+        <label for="jobDesc" class="sr-only">Job Description</label>
+        <textarea id="jobDesc" rows="16" placeholder="Paste the job description here…"></textarea>
+        <small class="char-count" id="jobDescCount">0 characters</small>
       </div>
     </section>
 
-    <hr class="sep">
-
-    <!-- Step 2 -->
-    <section>
-      <h2>Step 2 — Paste the Job Description</h2>
-      <p class="muted">We’ll analyze alignment and suggest tailored bullets.</p>
-
-      <label for="jd" class="sr-only">Job Description</label>
-      <textarea id="jd" rows="16" placeholder="Paste the job description here…"></textarea>
-      <small class="char-count" id="jdCount">0 characters</small>
-
+    <!-- Actions -->
+    <section class="actions-wrap">
       <div class="actions">
         <button id="analyzeBtn" class="secondary">Analyze Alignment</button>
         <button id="clearBtn" class="secondary">Clear</button>
@@ -54,17 +58,14 @@
       </div>
 
       <!-- Daily usage counter -->
-      <p id="usageCounter" class="usage-counter">0 / 5 rewrites used today</p>
+      <p id="usageCounter" class="usage-counter" aria-live="polite">0 / 5 rewrites used today</p>
     </section>
-
-    <hr class="sep">
 
     <!-- Results -->
     <section class="results">
       <h2>Results</h2>
-
       <div id="summary" class="card">
-        <p class="muted">Your analysis and AI bullets will appear here.</p>
+        <!-- AI Suggested Bullets and analysis will render here -->
       </div>
 
       <div class="grid-3">
@@ -73,7 +74,7 @@
           <ul id="topJd"></ul>
         </div>
         <div class="card">
-          <h3>Missing Terms</h3>
+          <h3>Missing from Resume</h3>
           <ul id="missing"></ul>
         </div>
         <div class="card">
@@ -83,31 +84,28 @@
       </div>
     </section>
 
-    <footer class="footer">
-      <p class="muted">Built as a learning project — refine, tailor, and stay truthful to your experience.</p>
-    </footer>
+    <p class="footer">Built as a learning MVP — iterate, test, and tailor to your experience.</p>
   </main>
 
-  <!-- Email Capture Modal (Lesson 12) -->
-  <div id="emailModal" class="modal" aria-hidden="true" role="dialog" aria-labelledby="emailModalTitle" style="display:none">
-    <div class="modal__backdrop" data-close="true"></div>
-    <div class="modal__card" role="document">
-      <button class="modal__close" aria-label="Close" data-close="true">×</button>
-      <h3 id="emailModalTitle">Unlock More Rewrites</h3>
-      <p>You've reached today's free limit. Enter your email to get more credits and occasional updates.</p>
-
+  <!-- Email unlock modal -->
+  <div id="emailModal" class="modal" aria-hidden="true" role="dialog" aria-labelledby="emailTitle" aria-describedby="emailDesc">
+    <div class="modal-content">
+      <button class="modal-close" id="emailClose" aria-label="Close">&times;</button>
+      <h3 id="emailTitle">Get more daily rewrites</h3>
+      <p id="emailDesc">You’ve reached today’s base limit. Enter your email to unlock extra rewrites.</p>
       <form id="emailForm" novalidate>
-        <label for="emailInput" class="sr-only">Email</label>
-        <input id="emailInput" type="email" placeholder="you@email.com" required />
-        <div class="modal__actions">
-          <button type="button" class="secondary" data-close="true">Maybe later</button>
-          <button id="emailSubmitBtn" type="submit">Continue</button>
+        <label for="emailInput" class="sr-only">Email address</label>
+        <input id="emailInput" type="email" placeholder="you@example.com" required />
+        <div id="emailError" class="form-error" role="alert" aria-live="polite"></div>
+        <div class="modal-actions">
+          <button type="button" class="secondary" id="emailCancel">Not now</button>
+          <button type="submit" class="ai-btn" id="emailSubmit">Unlock</button>
         </div>
-        <small id="emailHelp" class="muted">We’ll never share your email. Unsubscribe anytime.</small>
       </form>
     </div>
   </div>
 
-  <script defer src="script.js"></script>
+  <!-- App script -->
+  <script src="script.js" defer></script>
 </body>
 </html>
