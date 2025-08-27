@@ -146,7 +146,11 @@ function spinnerHTML(text = "Working…") {
 }
 
 // ---------- Daily usage counter (Lesson 8) ----------
-const MAX_REWRITES_PER_DAY = 5;
+const BASE_DAILY_LIMIT = 5;
+function getDailyLimit() {
+  // If user has given an email, grant +5 more for today
+  return localStorage.getItem("userEmail") ? BASE_DAILY_LIMIT + 5 : BASE_DAILY_LIMIT;
+}
 function getUsageKey() {
   const d = new Date();
   return `rewrites_${d.getFullYear()}-${d.getMonth()+1}-${d.getDate()}`;
@@ -163,7 +167,7 @@ function incrementRewrites() {
 function updateUsageCounter() {
   const el = document.getElementById("usageCounter");
   if (el) {
-    el.textContent = `${getRewritesUsed()} / ${MAX_REWRITES_PER_DAY} rewrites used today`;
+    el.textContent = `${getRewritesUsed()} / ${getDailyLimit()} rewrites used today`;
   }
 }
 updateUsageCounter(); // init on load
@@ -269,17 +273,18 @@ if (rewriteBtn) {
     }
 
     // Daily limit gate (Lesson 12 hook)
-    const used = getRewritesUsed();
-    if (used >= MAX_REWRITES_PER_DAY) {
-      const hasEmail = !!localStorage.getItem("userEmail");
-      if (!hasEmail) {
-        openEmailModal(); // ask once per device
-        showMessage("info", "You’ve reached today’s free limit. Add your email to unlock more.");
-      } else {
-        showMessage("warn", `Daily limit reached (${used}/${MAX_REWRITES_PER_DAY}). Please come back tomorrow.`);
-      }
-      return;
-    }
+const used = getRewritesUsed();
+const cap = getDailyLimit();
+if (used >= cap) {
+  const hasEmail = !!localStorage.getItem("userEmail");
+  if (!hasEmail) {
+    openEmailModal();
+    showMessage("info", "You’ve reached today’s free limit. Add your email to unlock more.");
+  } else {
+    showMessage("warn", `Daily limit reached (${used}/${cap}). Please come back tomorrow.`);
+  }
+  return;
+}
 
     if (summary) summary.innerHTML = spinnerHTML("Rewriting with AI…");
 
@@ -296,7 +301,7 @@ if (rewriteBtn) {
 
       if (summary) summary.innerHTML = `<h3>AI Suggested Bullets</h3><ul>${html}</ul>`;
       incrementRewrites();
-      showMessage("success", `AI rewrite complete. (${getRewritesUsed()}/${MAX_REWRITES_PER_DAY} used today)`);
+      showMessage("success", `AI rewrite complete. (${getRewritesUsed()}/${getDailyLimit()} used today)`);
     } catch (e) {
       if (summary) summary.innerHTML = "";
       showMessage("error", friendlyError(e));
@@ -480,6 +485,8 @@ function wireEmailModal() {
     const t = e.target;
     if (t?.dataset?.close === "true") {
       closeEmailModal();
+      updateUsageCounter();
+showMessage("success", "Thanks! Extra credits unlocked for today.");
     }
   });
 
