@@ -1,7 +1,65 @@
 // ================================
-// Resume Optimizer - script.js (Lessons 6–10)
-// Production-ready front-end
+// Resume Optimizer - script.js
+// Lessons 6–12 consolidated
 // ================================
+
+// ---------- Utility: tokenizing & keyword stats ----------
+const STOPWORDS = new Set([
+  "the","and","or","to","a","of","in","for","on","with","is","are","as","at","by",
+  "an","be","this","that","from","it","you","your","we","our","their","they",
+  "will","can","ability","responsible","responsibilities","experience","years"
+]);
+
+function tokenize(text) {
+  return (text || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9\s\-+.#]/g, " ")
+    .split(/\s+/)
+    .filter(Boolean);
+}
+
+function keywordCounts(text) {
+  const counts = new Map();
+  for (const tok of tokenize(text)) {
+    if (STOPWORDS.has(tok)) continue;
+    if (tok.length < 3) continue;
+    counts.set(tok, (counts.get(tok) || 0) + 1);
+  }
+  return counts;
+}
+
+function topTerms(counts, limit = 20) {
+  return [...counts.entries()]
+    .sort((a,b) => b[1]-a[1])
+    .slice(0, limit)
+    .map(([term,count]) => ({ term, count }));
+}
+
+function missingTerms(jdTop, resumeCounts) {
+  const missing = [];
+  for (const {term, count} of jdTop) {
+    if (!resumeCounts.has(term)) {
+      missing.push({ term, jdCount: count });
+    }
+  }
+  return missing;
+}
+
+function roughSuggestions(missing) {
+  return missing.slice(0, 10).map(({term}) =>
+    `Add a bullet using “${term}” in context (e.g., quantified impact or tool usage).`
+  );
+}
+
+function renderList(el, items, formatter = (x)=>x) {
+  if (!el) return;
+  el.innerHTML = "";
+  for (const item of items) {
+    const li = document.createElement("li");
+    li.textContent = formatter(item);
+    el.appendChild(li);
+  }
+}
 
 // ---------- Simple alert messaging ----------
 function showMessage(type, text) {
@@ -22,14 +80,12 @@ function showMessage(type, text) {
   }, 5000);
 }
 
-// --- Friendly error mapping ---
+// --- Friendly error mapping (Lesson 11.B) ---
 function friendlyError(err) {
   try {
-    // Strings or Error objects
     const raw = typeof err === "string" ? err : (err?.message || "");
     if (!raw) return "Something went wrong. Please try again.";
 
-    // Common API problems
     if (/invalid_api_key|Incorrect API key/i.test(raw)) {
       return "API key issue: check your OpenAI key in Vercel → Settings → Environment Variables.";
     }
@@ -52,7 +108,6 @@ function friendlyError(err) {
       return "No file was received. Pick a .docx, .pdf, or .txt with the Upload button.";
     }
 
-    // Sometimes server sends JSON; try to extract message
     try {
       const asJSON = JSON.parse(raw);
       if (asJSON?.error?.message) return asJSON.error.message;
@@ -61,14 +116,347 @@ function friendlyError(err) {
       if (asJSON?.error) return String(asJSON.error);
     } catch (_) {}
 
-    // Fallback: show trimmed error
     return raw.replace(/["{}\\]+/g, "").slice(0, 240);
   } catch (_) {
     return "Unexpected error. Please try again.";
   }
 }
 
-// ===== Email modal helpers =====
+// ---------- Loading helpers ----------
+function withLoading(btn, labelWhileLoading, fn) {
+  return async function(...args) {
+    let original;
+    if (btn) {
+      btn.disabled = true;
+      original = btn.innerHTML;
+      btn.innerHTML = `<span class="spinner"></span>${labelWhileLoading}`;
+    }
+    try {
+      return await fn(...args);
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = original;
+      }
+    }
+  };
+}
+function spinnerHTML(text = "Working…") {
+  return `<span class="spinner"></span>${text}`;
+}
+
+// ---------- Daily usage counter (Lesson 8) ----------
+const MAX_REWRITES_PER_DAY = 5;
+function getUsageKey() {
+  const d = new Date();
+  return `rewrites_${d.getFullYear()}-${d.getMonth()+1}-${d.getDate()}`;
+}
+function getRewritesUsed() {
+  return parseInt(localStorage.getItem(getUsageKey()) || "0", 10);
+}
+function incrementRewrites() {
+  const key = getUsageKey();
+  const used = getRewritesUsed() + 1;
+  localStorage.setItem(key, String(used));
+  updateUsageCounter();
+}
+function updateUsageCounter() {
+  const el = document.getElementById("usageCounter");
+  if (el) {
+    el.textContent = `${getRewritesUsed()} / ${MAX_REWRITES_PER_DAY} rewrites used today`;
+  }
+}
+updateUsageCounter(); // init on load
+
+// ===== Character counters (Lesson 11) =====
+function wireCharCounter(textareaId, counterId) {
+  const ta = document.getElementById(textareaId);
+  const cnt = document.getElementById(counterId);
+  if (!ta || !cnt) return;
+  const sync = () => (cnt.textContent = `${ta.value.length} characters`);
+  ta.addEventListener("input", sync);
+  sync();
+}
+wireCharCounter("resume", "resumeCount");
+wireCharCounter("jd", "jdCount");
+
+// ---------- Analyze Alignment (server) ----------
+const analyzeBtn = document.getElementById("analyzeBtn");
+if (analyzeBtn) {
+  const handler = withLoading(analyzeBtn, "Analyzing…", async () => {
+    const resume = (document.getElementById("resume")?.value || "").trim();
+    const jobDesc =
+      (document.getElementById("jd")?.value ||
+       document.getElementById("jobDesc")?.value ||
+       "").trim();
+
+    if (!resume || !jobDesc) {
+      showMessage("warn", "Please paste both Resume and Job Description.");
+      return;
+    }
+
+    try {
+      const r = await fetch("/api/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ resume, jobDesc })
+      });
+      if (!r.ok) throw new Error(await r.text());
+      const data = await r.json();
+
+      const summary = document.getElementById("summary");
+      if (summary) {
+        summary.innerHTML = `
+          <div class="card">
+            <h3>Alignment Analysis</h3>
+            <p>${(data.analysis || "").replace(/\n/g, "<br>")}</p>
+          </div>
+        `;
+      }
+      showMessage("success", "Alignment analysis complete.");
+    } catch (err) {
+      showMessage("error", friendlyError(err));
+    }
+  });
+
+  analyzeBtn.addEventListener("click", handler);
+}
+
+// ---------- Clear ----------
+const clearBtn = document.getElementById("clearBtn");
+if (clearBtn) {
+  clearBtn.addEventListener("click", () => {
+    const ids = ["resume","jd","summary","topJd","missing","suggestions"];
+    for (const id of ids) {
+      const el = document.getElementById(id);
+      if (!el) continue;
+      if (el.tagName === "TEXTAREA" || el.tagName === "INPUT") {
+        el.value = "";
+      } else {
+        el.innerHTML = "";
+      }
+    }
+    updateUsageCounter();
+    showMessage("info", "Cleared fields.");
+  });
+}
+
+// ---------- AI Rewrite (secure backend) ----------
+async function callRewriteAPI(resume, jd, opts = {}) {
+  const r = await fetch("/api/rewrite", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ resume, jd, ...opts })
+  });
+  if (!r.ok) {
+    const t = await r.text();
+    throw new Error(t);
+  }
+  const data = await r.json();
+  return data.bullets || "";
+}
+
+const rewriteBtn = document.getElementById("rewriteBtn");
+if (rewriteBtn) {
+  const handler = withLoading(rewriteBtn, "Rewriting…", async () => {
+    const resume = (document.getElementById("resume")?.value || "").trim();
+    const jd = (document.getElementById("jd")?.value || "").trim();
+    const summary = document.getElementById("summary");
+
+    if (!resume || !jd) {
+      showMessage("warn", "Please paste both Resume and Job Description first.");
+      return;
+    }
+
+    // Daily limit gate (Lesson 12 hook)
+    const used = getRewritesUsed();
+    if (used >= MAX_REWRITES_PER_DAY) {
+      const hasEmail = !!localStorage.getItem("userEmail");
+      if (!hasEmail) {
+        openEmailModal(); // ask once per device
+        showMessage("info", "You’ve reached today’s free limit. Add your email to unlock more.");
+      } else {
+        showMessage("warn", `Daily limit reached (${used}/${MAX_REWRITES_PER_DAY}). Please come back tomorrow.`);
+      }
+      return;
+    }
+
+    if (summary) summary.innerHTML = spinnerHTML("Rewriting with AI…");
+
+    try {
+      // (Optional future: tone/seniority/role controls)
+      const bullets = await callRewriteAPI(resume, jd, {});
+      const html = bullets
+        .split("\n")
+        .map(l => l.trim())
+        .filter(Boolean)
+        .map(l => l.replace(/^[-•*\d.)\s]+/, "")) // strip leading markers
+        .map(l => `<li>${l}</li>`)
+        .join("");
+
+      if (summary) summary.innerHTML = `<h3>AI Suggested Bullets</h3><ul>${html}</ul>`;
+      incrementRewrites();
+      showMessage("success", `AI rewrite complete. (${getRewritesUsed()}/${MAX_REWRITES_PER_DAY} used today)`);
+    } catch (e) {
+      if (summary) summary.innerHTML = "";
+      showMessage("error", friendlyError(e));
+    }
+  });
+
+  rewriteBtn.addEventListener("click", handler);
+}
+
+// ---------- Copy + Download ----------
+function getCurrentBullets() {
+  const summary = document.getElementById("summary");
+  const lis = summary ? summary.querySelectorAll("li") : [];
+  return Array.from(lis).map(li => li.textContent.trim()).filter(Boolean);
+}
+
+// Copy AI bullets
+const copyBtn = document.getElementById("copyBtn");
+if (copyBtn) {
+  const handler = withLoading(copyBtn, "Copying…", async () => {
+    const bullets = getCurrentBullets();
+    if (!bullets.length) {
+      showMessage("warn", "No AI bullets to copy yet!");
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(bullets.join("\n"));
+      showMessage("success", "Copied AI bullets to your clipboard.");
+    } catch (err) {
+      showMessage("error", friendlyError(err));
+    }
+  });
+  copyBtn.addEventListener("click", handler);
+}
+
+// Download real DOCX (backend generates via /api/download-docx)
+const downloadBtn = document.getElementById("downloadBtn");
+if (downloadBtn) {
+  const handler = withLoading(downloadBtn, "Preparing DOCX…", async () => {
+    const bullets = getCurrentBullets();
+    if (!bullets.length) {
+      showMessage("warn", "No AI bullets to download yet!");
+      return;
+    }
+
+    try {
+      const r = await fetch("/api/download-docx", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: "AI Suggested Resume Bullets", bullets })
+      });
+
+      if (!r.ok) {
+        const t = await r.text();
+        throw new Error(`DOCX export failed: ${t}`);
+      }
+
+      const blob = await r.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "ai_resume_bullets.docx";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      showMessage("success", "Downloaded DOCX. Open it in Word/Pages.");
+    } catch (e) {
+      showMessage("error", friendlyError(e));
+    }
+  });
+
+  downloadBtn.addEventListener("click", handler);
+}
+
+// ---------- Resume file upload → /api/extract ----------
+const uploadBtn = document.getElementById("uploadBtn");
+const resumeFileInput = document.getElementById("resumeFile");
+
+if (uploadBtn && resumeFileInput) {
+  // Open hidden file input
+  uploadBtn.addEventListener("click", () => resumeFileInput.click());
+
+  // Send chosen file to backend (FormData)
+  resumeFileInput.addEventListener("change", async () => {
+    const file = resumeFileInput.files?.[0];
+    if (!file) {
+      showMessage("warn", "No file selected.");
+      return;
+    }
+
+    // Button morph to prevent double clicks
+    const originalHTML = uploadBtn.innerHTML;
+    uploadBtn.disabled = true;
+    uploadBtn.innerHTML = `<span class="spinner"></span>Uploading…`;
+
+    const formData = new FormData();
+    // IMPORTANT: backend expects "file" as the first field
+    formData.append("file", file);
+
+    try {
+      const r = await fetch("/api/extract", { method: "POST", body: formData }); // no Content-Type header
+      if (!r.ok) throw new Error(await r.text());
+      const data = await r.json();
+      const resumeEl = document.getElementById("resume");
+      if (resumeEl) resumeEl.value = data.text || "";
+      showMessage("success", "File text extracted and added to your resume.");
+      // refresh counter since text changed (optional)
+      const cnt = document.getElementById("resumeCount");
+      if (cnt) cnt.textContent = `${(resumeEl?.value || "").length} characters`;
+    } catch (err) {
+      showMessage("error", friendlyError(err));
+    } finally {
+      // Restore button and allow re-selecting the same file
+      uploadBtn.disabled = false;
+      uploadBtn.innerHTML = originalHTML;
+      resumeFileInput.value = "";
+    }
+  });
+}
+
+// ---------- Local (no-AI) Alignment Helpers (Results right-side cards) ----------
+function runLocalAlignment(resumeText, jdText) {
+  const summaryEl = document.getElementById("summary");
+  const topJdEl = document.getElementById("topJd");
+  const missingEl = document.getElementById("missing");
+  const suggestionsEl = document.getElementById("suggestions");
+
+  const resumeCounts = keywordCounts(resumeText);
+  const jdCounts = keywordCounts(jdText);
+
+  const jdTop = topTerms(jdCounts, 20);
+  const miss = missingTerms(jdTop, resumeCounts);
+  const sugg = roughSuggestions(miss);
+
+  const coverage = ((jdTop.length - miss.length) / Math.max(1, jdTop.length) * 100).toFixed(0);
+  if (summaryEl) {
+    summaryEl.innerHTML = `
+      <p><strong>Coverage:</strong> ${coverage}% of top JD terms appear in your resume.</p>
+      <p class="muted">Next step: Use “Suggested Additions” to weave missing terms into impact bullets.</p>
+    `;
+  }
+
+  renderList(topJdEl, jdTop, x => `${x.term} (${x.count})`);
+  renderList(missingEl, miss, x => x.term);
+  renderList(suggestionsEl, sugg);
+}
+
+// Wire local analysis to the Analyze button as a fallback as well
+// (We already call /api/analyze above; this is optional to keep the side cards fresh)
+if (analyzeBtn) {
+  analyzeBtn.addEventListener("click", () => {
+    const resume = (document.getElementById("resume")?.value || "");
+    const jd = (document.getElementById("jd")?.value || "");
+    if (resume && jd) runLocalAlignment(resume, jd);
+  });
+}
+
+// ===== Lesson 12: Email Modal helpers & wiring =====
 function openEmailModal() {
   const modal = document.getElementById("emailModal");
   if (!modal) return;
@@ -104,17 +492,16 @@ function wireEmailModal() {
     e.preventDefault();
     const email = (input.value || "").trim();
 
-    // Basic HTML5 validation first
     if (!email || !input.checkValidity()) {
       showMessage("warn", "Please enter a valid email address.");
       input.focus();
       return;
     }
 
-    // Optimistically store locally so we don’t prompt again on this device
+    // Store locally so we don’t prompt again on this device
     localStorage.setItem("userEmail", email);
 
-    // Optional: send to backend (non-blocking UX)
+    // Optional backend submit (non-blocking)
     try {
       submitBtn.disabled = true;
       submitBtn.textContent = "Saving…";
@@ -124,7 +511,7 @@ function wireEmailModal() {
         body: JSON.stringify({ email, ts: Date.now(), ua: navigator.userAgent })
       });
     } catch (_) {
-      // Non-fatal: we still close & proceed
+      // Non-fatal — still proceed
     } finally {
       submitBtn.disabled = false;
       submitBtn.textContent = "Continue";
@@ -134,392 +521,4 @@ function wireEmailModal() {
     showMessage("success", "Thanks! We’ll reach out with more credits and updates.");
   });
 }
-
 document.addEventListener("DOMContentLoaded", wireEmailModal);
-
-function spinnerHTML(text = "Working…") {
-  return `<span class="spinner"></span>${text}`;
-}
-
-// ---------- Rewrite usage counter (daily limit) ----------
-const MAX_REWRITES_PER_DAY = 5;
-const USAGE_KEY = "rewritesUsed";
-const USAGE_DATE_KEY = "rewritesDate";
-
-function todayKey() {
-  const d = new Date();
-  return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
-}
-
-function getRewritesUsed() {
-  const storedDate = localStorage.getItem(USAGE_DATE_KEY);
-  if (storedDate !== todayKey()) {
-    // reset on new day
-    localStorage.setItem(USAGE_DATE_KEY, todayKey());
-    localStorage.setItem(USAGE_KEY, "0");
-  }
-  return parseInt(localStorage.getItem(USAGE_KEY) || "0", 10);
-}
-
-function setRewritesUsed(n) {
-  localStorage.setItem(USAGE_DATE_KEY, todayKey());
-  localStorage.setItem(USAGE_KEY, String(n));
-}
-
-function incrementRewrites() {
-  setRewritesUsed(getRewritesUsed() + 1);
-}
-
-function updateUsageCounter() {
-  const el = document.getElementById("usageCounter");
-  if (el) el.textContent = `${getRewritesUsed()} / ${MAX_REWRITES_PER_DAY} rewrites used today`;
-}
-updateUsageCounter();
-
-/* --- Character counters (Lesson 11) --- */
-function updateCharCount(textareaId, counterId) {
-  const ta = document.getElementById(textareaId);
-  const out = document.getElementById(counterId);
-  if (!ta || !out) return;
-  const len = (ta.value || "").length;
-  out.textContent = `${len.toLocaleString()} characters`;
-}
-function wireCharCounters() {
-  const pairs = [
-    ["resume", "resumeCount"],
-    ["jd", "jdCount"],
-    ["jobDesc", "jdCount"], // fallback if your JD field uses id="jobDesc"
-  ];
-  for (const [taId, outId] of pairs) {
-    const ta = document.getElementById(taId);
-    if (!ta) continue;
-    const handler = () => updateCharCount(taId, outId);
-    ta.addEventListener("input", handler);
-    handler(); // initialize immediately
-  }
-}
-document.addEventListener("DOMContentLoaded", wireCharCounters);
-
-// ---------- Loading helpers ----------
-function withLoading(btn, labelWhileLoading, fn) {
-  return async function (...args) {
-    let originalHTML;
-    if (btn) {
-      btn.disabled = true;
-      originalHTML = btn.innerHTML;
-      btn.innerHTML = `<span class="spinner"></span>${labelWhileLoading}`;
-    }
-    try {
-      return await fn(...args);
-    } finally {
-      if (btn) {
-        btn.disabled = false;
-        btn.innerHTML = originalHTML;
-      }
-    }
-  };
-}
-
-function spinnerHTML(text = "Working…") {
-  return `<span class="spinner"></span>${text}`;
-}
-
-// ---------- Utilities ----------
-function getCurrentBullets() {
-  const summary = document.getElementById("summary");
-  const lis = summary ? summary.querySelectorAll("li") : [];
-  return Array.from(lis).map(li => li.textContent.trim()).filter(Boolean);
-}
-
-// ==============================
-// Upload: Resume → /api/extract
-// ==============================
-// ---------- Resume file upload → /api/extract (with spinner on button) ----------
-const uploadBtn = document.getElementById("uploadBtn");
-const resumeFileInput = document.getElementById("resumeFile");
-
-if (uploadBtn && resumeFileInput) {
-  // Clicking the visible button opens the hidden file picker
-  uploadBtn.addEventListener("click", () => resumeFileInput.click());
-
-  // When a file is chosen, send it to the backend
-  resumeFileInput.addEventListener("change", async () => {
-    const file = resumeFileInput.files?.[0];
-    if (!file) {
-      showMessage("warn", "No file selected.");
-      return;
-    }
-
-    // Show spinner on the visible Upload button during the request
-    let originalHTML = uploadBtn.innerHTML;
-    uploadBtn.disabled = true;
-    uploadBtn.innerHTML = spinnerHTML("Uploading…");
-
-    const formData = new FormData();
-    // IMPORTANT: key must be "file" (backend expects this)
-    formData.append("file", file);
-
-    try {
-      showMessage("info", "Extracting text from file...");
-      const r = await fetch("/api/extract", {
-        method: "POST",
-        body: formData, // no manual Content-Type header
-      });
-      if (!r.ok) {
-        const t = await r.text();
-        throw new Error(t);
-      }
-      const data = await r.json();
-
-      const resumeEl = document.getElementById("resume");
-      if (resumeEl) resumeEl.value = data.text || "";
-
-      // Kick char-counter if present
-      if (typeof updateCharCount === "function") {
-        updateCharCount("resume", "resumeCount");
-      }
-
-      showMessage("success", "File text extracted and added to your resume.");
-    } catch (err) {
-      showMessage("error", friendlyError(err));
-    } finally {
-      // Restore button and allow re-selecting the same file
-      uploadBtn.disabled = false;
-      uploadBtn.innerHTML = originalHTML;
-      resumeFileInput.value = "";
-    }
-  });
-}
-
-// ==============================
-// Upload: JD → /api/extract
-// (These elements are optional. If they don't exist in index.html yet,
-// this block simply does nothing.)
-// ==============================
-const jdUploadBtn = document.getElementById("jdUploadBtn");
-const jdFileInput = document.getElementById("jdFile");
-
-if (jdUploadBtn && jdFileInput) {
-  jdUploadBtn.addEventListener("click", () => jdFileInput.click());
-
-  jdFileInput.addEventListener("change", async () => {
-    const file = jdFileInput.files?.[0];
-    if (!file) {
-      showMessage("warn", "No file selected.");
-      return;
-    }
-    const formData = new FormData();
-    formData.append("file", file);
-
-    try {
-      showMessage("info", "Extracting text from JD file…");
-      const r = await fetch("/api/extract", { method: "POST", body: formData });
-      if (!r.ok) throw new Error(await r.text());
-      const data = await r.json();
-
-      const jdEl = document.getElementById("jobDesc") || document.getElementById("jd");
-      if (jdEl) jdEl.value = data.text || "";
-      showMessage("success", "Job description text extracted.");
-    } catch (err) {
-      showMessage("error", friendlyError(err));
-    } finally {
-      jdFileInput.value = "";
-    }
-  });
-}
-
-// ==============================
-// Analyze Alignment → /api/analyze
-// ==============================
-const analyzeBtn = document.getElementById("analyzeBtn");
-if (analyzeBtn) {
-  const handler = withLoading(analyzeBtn, "Analyzing…", async () => {
-    const resume = (document.getElementById("resume")?.value || "").trim();
-    const jobDesc =
-      (document.getElementById("jobDesc")?.value ||
-        document.getElementById("jd")?.value ||
-        "").trim();
-
-    if (!resume || !jobDesc) {
-      showMessage("warn", "Please paste both Resume and Job Description.");
-      return;
-    }
-
-    try {
-      const r = await fetch("/api/analyze", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ resume, jobDesc })
-      });
-      if (!r.ok) throw new Error(await r.text());
-      const data = await r.json();
-
-      const summary = document.getElementById("summary");
-      if (summary) {
-        summary.innerHTML = `
-          <div class="card">
-            <h3>Alignment Analysis</h3>
-            <p>${(data.analysis || "").replace(/\n/g, "<br>")}</p>
-          </div>
-        `;
-      }
-      showMessage("success", "Alignment analysis complete.");
-    } catch (err) {
-      showMessage("error", friendlyError(err));
-    }
-  });
-
-  analyzeBtn.addEventListener("click", handler);
-}
-
-// ==============================
-// Rewrite for Alignment → /api/rewrite
-// (includes daily limit + optional controls from Lesson 7)
-// ==============================
-async function callRewriteAPI(resume, jd, options = {}) {
-  const r = await fetch("/api/rewrite", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ resume, jd, ...options })
-  });
-  if (!r.ok) throw new Error(await r.text());
-  const data = await r.json();
-  return data.bullets || "";
-}
-
-const rewriteBtn = document.getElementById("rewriteBtn");
-
-if (rewriteBtn) {
-  const handler = withLoading(rewriteBtn, "Rewriting…", async () => {
-    const resume = (document.getElementById("resume")?.value || "").trim();
-    const jd =
-      (document.getElementById("jd")?.value ||
-       document.getElementById("jobDesc")?.value || "")
-      .trim();
-
-    if (!resume || !jd) {
-      showMessage("warn", "Please paste both Resume and Job Description.");
-      return;
-    }
-
-    // Optional: Lesson 7 controls (only if you have them in your HTML)
-    const tone = (document.getElementById("tone")?.value || "Professional").toLowerCase();
-    const seniority = (document.getElementById("seniority")?.value || "Mid").toLowerCase();
-    const role = (document.getElementById("role")?.value || "Engineering").toLowerCase();
-
-    // Optional: Lesson 8 daily limit (only if present in your code)
-    if (typeof getRewritesUsed === "function" && typeof MAX_REWRITES_PER_DAY !== "undefined") {
-      const used = getRewritesUsed();
-if (used >= MAX_REWRITES_PER_DAY) {
-  const hasEmail = !!localStorage.getItem("userEmail");
-  if (!hasEmail) {
-    openEmailModal(); // prompt just once per device
-    showMessage("info", "You’ve reached today’s free limit. Add your email to unlock more.");
-  } else {
-    showMessage("warn", `Daily limit reached (${used}/${MAX_REWRITES_PER_DAY}). Please come back tomorrow.`);
-  }
-  return;
-}
-
-    const bullets = await callRewriteAPI(resume, jd, { tone, seniority, role });
-    const html = bullets
-      .split("\n")
-      .map(l => l.trim())
-      .filter(Boolean)
-      .map(l => l.replace(/^[-•*\d.)\s]+/, ""))
-      .map(l => `<li>${l}</li>`)
-      .join("");
-
-    const summary = document.getElementById("summary");
-    if (summary) summary.innerHTML = `<h3>AI Suggested Bullets</h3><ul>${html}</ul>`;
-
-    if (typeof incrementRewrites === "function") incrementRewrites();
-    if (typeof updateUsageCounter === "function") updateUsageCounter();
-
-    showMessage("success", "AI rewrite complete.");
-  });
-
-  rewriteBtn.addEventListener("click", handler);
-}
-
-// ==============================
-// Copy AI bullets to clipboard
-// ==============================
-const copyBtn = document.getElementById("copyBtn");
-if (copyBtn) {
-  copyBtn.addEventListener("click", async () => {
-    const bullets = getCurrentBullets();
-    if (!bullets.length) {
-      showMessage("warn", "No AI bullets to copy yet!");
-      return;
-    }
-    try {
-      await navigator.clipboard.writeText(bullets.join("\n"));
-      showMessage("success", "Copied AI bullets to clipboard.");
-    } catch (err) {
-     showMessage("error", friendlyError(err));
-    }
-  });
-}
-
-// ==============================
-// Download DOCX via backend
-// ==============================
-const downloadBtn = document.getElementById("downloadBtn");
-if (downloadBtn) {
-  const handler = withLoading(downloadBtn, "Preparing DOCX…", async () => {
-    const bullets = getCurrentBullets();
-    if (!bullets.length) {
-      showMessage("warn", "No AI bullets to download yet!");
-      return;
-    }
-
-    try {
-      const r = await fetch("/api/download-docx", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title: "AI Suggested Resume Bullets",
-          bullets
-        })
-      });
-      if (!r.ok) throw new Error(`DOCX export failed: ${await r.text()}`);
-
-      const blob = await r.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "ai_resume_bullets.docx";
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-
-      showMessage("success", "Downloaded DOCX. Open it in Word/Pages.");
-    } catch (e) {
-      showMessage("error", friendlyError(err));
-    }
-  });
-
-  downloadBtn.addEventListener("click", handler);
-}
-
-// ==============================
-// Clear button
-// ==============================
-const clearBtn = document.getElementById("clearBtn");
-if (clearBtn) {
-  clearBtn.addEventListener("click", () => {
-    const ids = ["resume", "jobDesc", "jd", "summary"];
-    ids.forEach(id => {
-      const el = document.getElementById(id);
-      if (!el) return;
-      if (el.tagName === "TEXTAREA" || el.tagName === "INPUT") {
-        el.value = "";
-      } else {
-        el.innerHTML = "";
-      }
-    });
-    showMessage("info", "Cleared inputs and results.");
-  });
-}
