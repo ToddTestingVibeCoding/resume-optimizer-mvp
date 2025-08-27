@@ -410,11 +410,16 @@ if (rewriteBtn) {
     // Optional: Lesson 8 daily limit (only if present in your code)
     if (typeof getRewritesUsed === "function" && typeof MAX_REWRITES_PER_DAY !== "undefined") {
       const used = getRewritesUsed();
-      if (used >= MAX_REWRITES_PER_DAY) {
-        showMessage("warn", "Daily limit reached. Please come back tomorrow or sign up to unlock more.");
-        return;
-      }
-    }
+if (used >= MAX_REWRITES_PER_DAY) {
+  const hasEmail = !!localStorage.getItem("userEmail");
+  if (!hasEmail) {
+    openEmailModal(); // prompt just once per device
+    showMessage("info", "You’ve reached today’s free limit. Add your email to unlock more.");
+  } else {
+    showMessage("warn", `Daily limit reached (${used}/${MAX_REWRITES_PER_DAY}). Please come back tomorrow.`);
+  }
+  return;
+}
 
     const bullets = await callRewriteAPI(resume, jd, { tone, seniority, role });
     const html = bullets
