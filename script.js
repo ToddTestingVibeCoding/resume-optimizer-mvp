@@ -176,18 +176,22 @@ function updateCounterFrom(el, counterEl) {
 function wireCounters() {
   const resumeEl = document.getElementById("resume");
   const jobDescEl = document.getElementById("jobDesc") || document.getElementById("jd");
-  const resumeCount = document.getElementById("resumeCounter");
-  const jdCount = document.getElementById("jdCounter") || document.getElementById("jobDescCounter");
+  const resumeCount = document.getElementById("resumeCount");
+  const jobDescCount = document.getElementById("jobDescCount");
 
   if (resumeEl && resumeCount) {
     updateCounterFrom(resumeEl, resumeCount);
     resumeEl.addEventListener("input", () => updateCounterFrom(resumeEl, resumeCount));
   }
-  if (jobDescEl && jdCount) {
-    updateCounterFrom(jobDescEl, jdCount);
-    jobDescEl.addEventListener("input", () => updateCounterFrom(jobDescEl, jdCount));
+  if (jobDescEl && jobDescCount) {
+    updateCounterFrom(jobDescEl, jobDescCount);
+    jobDescEl.addEventListener("input", () => updateCounterFrom(jobDescEl, jobDescCount));
   }
 }
+
+// ensure it runs
+wireCounters();
+// (or) document.addEventListener("DOMContentLoaded", wireCounters);
 
 // ---------- Email modal (unlock bonus rewrites) ----------
 let pendingAction = null;
