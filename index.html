@@ -46,5 +46,24 @@
   </main>
 
   <script src="script.js"></script>
+  <!-- Email Capture Modal (hidden by default) -->
+<div id="emailModal" class="modal" aria-hidden="true" role="dialog" aria-labelledby="emailModalTitle" style="display:none">
+  <div class="modal__backdrop" data-close="true"></div>
+  <div class="modal__card" role="document">
+    <button class="modal__close" aria-label="Close" data-close="true">×</button>
+    <h3 id="emailModalTitle">Unlock More Rewrites</h3>
+    <p>You've reached today's free limit. Enter your email to get more credits and occasional updates.</p>
+
+    <form id="emailForm" novalidate>
+      <label for="emailInput" class="sr-only">Email</label>
+      <input id="emailInput" type="email" placeholder="you@email.com" required />
+      <div class="modal__actions">
+        <button type="button" class="secondary" data-close="true">Maybe later</button>
+        <button id="emailSubmitBtn" type="submit">Continue</button>
+      </div>
+      <small id="emailHelp" class="muted">We’ll never share your email. Unsubscribe anytime.</small>
+    </form>
+  </div>
+</div>
 </body>
 </html>
