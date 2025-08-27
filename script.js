@@ -68,6 +68,75 @@ function friendlyError(err) {
   }
 }
 
+// ===== Email modal helpers =====
+function openEmailModal() {
+  const modal = document.getElementById("emailModal");
+  if (!modal) return;
+  modal.style.display = "block";
+  modal.setAttribute("aria-hidden", "false");
+}
+
+function closeEmailModal() {
+  const modal = document.getElementById("emailModal");
+  if (!modal) return;
+  modal.style.display = "none";
+  modal.setAttribute("aria-hidden", "true");
+}
+
+function wireEmailModal() {
+  const modal = document.getElementById("emailModal");
+  if (!modal) return;
+
+  // Close on backdrop or X or "Maybe later"
+  modal.addEventListener("click", (e) => {
+    const t = e.target;
+    if (t?.dataset?.close === "true") {
+      closeEmailModal();
+    }
+  });
+
+  const form = document.getElementById("emailForm");
+  const input = document.getElementById("emailInput");
+  const submitBtn = document.getElementById("emailSubmitBtn");
+  if (!form || !input || !submitBtn) return;
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const email = (input.value || "").trim();
+
+    // Basic HTML5 validation first
+    if (!email || !input.checkValidity()) {
+      showMessage("warn", "Please enter a valid email address.");
+      input.focus();
+      return;
+    }
+
+    // Optimistically store locally so we don’t prompt again on this device
+    localStorage.setItem("userEmail", email);
+
+    // Optional: send to backend (non-blocking UX)
+    try {
+      submitBtn.disabled = true;
+      submitBtn.textContent = "Saving…";
+      await fetch("/api/lead", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, ts: Date.now(), ua: navigator.userAgent })
+      });
+    } catch (_) {
+      // Non-fatal: we still close & proceed
+    } finally {
+      submitBtn.disabled = false;
+      submitBtn.textContent = "Continue";
+    }
+
+    closeEmailModal();
+    showMessage("success", "Thanks! We’ll reach out with more credits and updates.");
+  });
+}
+
+document.addEventListener("DOMContentLoaded", wireEmailModal);
+
 function spinnerHTML(text = "Working…") {
   return `<span class="spinner"></span>${text}`;
 }
