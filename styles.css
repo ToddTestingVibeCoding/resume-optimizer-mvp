@@ -43,8 +43,12 @@ body {
   padding: 0 20px;
 }
 .header {
-  display: flex; align-items: center; justify-content: space-between;
-  gap: 16px; margin-bottom: 20px;
+  display: flex;
+  flex-direction: column; /* stack title + tagline vertically */
+  align-items: center;    /* center them horizontally */
+  text-align: center;     /* make text lines centered */
+  gap: 8px;               /* small space between title + tagline */
+  margin-bottom: 20px;
 }
 .brand {
   font-weight: 700; letter-spacing: 0.2px; font-size: 22px;
