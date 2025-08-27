@@ -275,3 +275,28 @@ body.light{
   --surface:#f2f4ff;
   --shadow:0 10px 30px rgba(21,36,80,0.10);
 }
+/* ---- Hero header centering override ---- */
+header.site-header, .site-header {
+  display: flex;
+  flex-direction: column;   /* stack title + tagline */
+  align-items: center;      /* center horizontally */
+  justify-content: center;
+  text-align: center;       /* center text lines */
+  gap: 8px;
+  margin: 12px auto var(--space-lg);
+  max-width: 900px;
+  padding: 0 20px;          /* aligns visually with .container sides */
+}
+
+header.site-header h1 {
+  margin: 0;
+  font-weight: 800;
+  letter-spacing: .2px;
+  font-size: var(--h1);
+}
+
+header.site-header .tagline {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--p-lg);
+}
