@@ -2,68 +2,110 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Resume Optimizer MVP</title>
-  <link rel="stylesheet" href="styles.css"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Resume Optimizer (MVP)</title>
+  <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <main>
-    <h1>Resume Optimizer MVP</h1>
+  <header class="site-header">
+    <h1>Resume Optimizer</h1>
+    <p class="tagline">Paste your resume + job description → get tailored, impact-focused bullets.</p>
+  </header>
+
+  <main class="container">
+    <!-- Messages / Alerts -->
+    <div id="messages" aria-live="polite"></div>
 
     <!-- Step 1 -->
     <section>
-      <h2>Step 1: Paste Your Resume</h2>
-      <textarea id="resume" placeholder="Paste your resume here..."></textarea>
+      <h2>Step 1 — Paste or Upload Your Resume</h2>
+      <p class="muted">Paste your resume text or upload a .docx / .pdf / .txt file.</p>
+
+      <label for="resume" class="sr-only">Resume</label>
+      <textarea id="resume" rows="16" placeholder="Paste your resume here…"></textarea>
       <small class="char-count" id="resumeCount">0 characters</small>
-      <input id="resumeFile" type="file" accept=".docx,.pdf,.txt" style="display:none"/>
-      <button id="uploadBtn" type="button" class="secondary">Upload Resume File</button>
+
+      <div class="actions">
+        <!-- Hidden input; visible button triggers it -->
+        <input id="resumeFile" type="file" accept=".docx,.pdf,.txt" style="display:none" />
+        <button id="uploadBtn" type="button" class="secondary">Upload Resume File</button>
+      </div>
     </section>
-<hr class="sep">
+
+    <hr class="sep">
+
     <!-- Step 2 -->
     <section>
-      <h2>Step 2: Paste Job Description</h2>
-      <textarea id="jobDesc" placeholder="Paste the job description here..."></textarea>
-      <small class="char-count" id="jdCount">0 characters</small>
-    </section>
-<hr class="sep">
-    <!-- Actions -->
-    <div class="actions">
-      <button id="analyzeBtn" class="secondary">Analyze Alignment</button>
-      <button id="clearBtn" class="secondary">Clear</button>
-      <button id="rewriteBtn" class="ai-btn">Rewrite for Alignment (AI)</button>
-      <button id="copyBtn">Copy AI Bullets</button>
-      <button id="downloadBtn">Download as DOCX</button>
-    </div>
+      <h2>Step 2 — Paste the Job Description</h2>
+      <p class="muted">We’ll analyze alignment and suggest tailored bullets.</p>
 
-    <!-- Usage counter (Lesson 8 Step C) -->
-    <p id="usageCounter" class="usage-counter">0 / 5 rewrites used today</p>
+      <label for="jd" class="sr-only">Job Description</label>
+      <textarea id="jd" rows="16" placeholder="Paste the job description here…"></textarea>
+      <small class="char-count" id="jdCount">0 characters</small>
+
+      <div class="actions">
+        <button id="analyzeBtn" class="secondary">Analyze Alignment</button>
+        <button id="clearBtn" class="secondary">Clear</button>
+        <button id="rewriteBtn" class="ai-btn">Rewrite for Alignment (AI)</button>
+        <button id="copyBtn">Copy AI Bullets</button>
+        <button id="downloadBtn">Download as DOCX</button>
+      </div>
+
+      <!-- Daily usage counter -->
+      <p id="usageCounter" class="usage-counter">0 / 5 rewrites used today</p>
+    </section>
+
+    <hr class="sep">
 
     <!-- Results -->
-    <section>
+    <section class="results">
       <h2>Results</h2>
-      <div id="summary"></div>
+
+      <div id="summary" class="card">
+        <p class="muted">Your analysis and AI bullets will appear here.</p>
+      </div>
+
+      <div class="grid-3">
+        <div class="card">
+          <h3>Top JD Terms</h3>
+          <ul id="topJd"></ul>
+        </div>
+        <div class="card">
+          <h3>Missing Terms</h3>
+          <ul id="missing"></ul>
+        </div>
+        <div class="card">
+          <h3>Suggested Additions</h3>
+          <ul id="suggestions"></ul>
+        </div>
+      </div>
     </section>
+
+    <footer class="footer">
+      <p class="muted">Built as a learning project — refine, tailor, and stay truthful to your experience.</p>
+    </footer>
   </main>
 
-  <script src="script.js"></script>
-  <!-- Email Capture Modal (hidden by default) -->
-<div id="emailModal" class="modal" aria-hidden="true" role="dialog" aria-labelledby="emailModalTitle" style="display:none">
-  <div class="modal__backdrop" data-close="true"></div>
-  <div class="modal__card" role="document">
-    <button class="modal__close" aria-label="Close" data-close="true">×</button>
-    <h3 id="emailModalTitle">Unlock More Rewrites</h3>
-    <p>You've reached today's free limit. Enter your email to get more credits and occasional updates.</p>
+  <!-- Email Capture Modal (Lesson 12) -->
+  <div id="emailModal" class="modal" aria-hidden="true" role="dialog" aria-labelledby="emailModalTitle" style="display:none">
+    <div class="modal__backdrop" data-close="true"></div>
+    <div class="modal__card" role="document">
+      <button class="modal__close" aria-label="Close" data-close="true">×</button>
+      <h3 id="emailModalTitle">Unlock More Rewrites</h3>
+      <p>You've reached today's free limit. Enter your email to get more credits and occasional updates.</p>
 
-    <form id="emailForm" novalidate>
-      <label for="emailInput" class="sr-only">Email</label>
-      <input id="emailInput" type="email" placeholder="you@email.com" required />
-      <div class="modal__actions">
-        <button type="button" class="secondary" data-close="true">Maybe later</button>
-        <button id="emailSubmitBtn" type="submit">Continue</button>
-      </div>
-      <small id="emailHelp" class="muted">We’ll never share your email. Unsubscribe anytime.</small>
-    </form>
+      <form id="emailForm" novalidate>
+        <label for="emailInput" class="sr-only">Email</label>
+        <input id="emailInput" type="email" placeholder="you@email.com" required />
+        <div class="modal__actions">
+          <button type="button" class="secondary" data-close="true">Maybe later</button>
+          <button id="emailSubmitBtn" type="submit">Continue</button>
+        </div>
+        <small id="emailHelp" class="muted">We’ll never share your email. Unsubscribe anytime.</small>
+      </form>
+    </div>
   </div>
-</div>
+
+  <script defer src="script.js"></script>
 </body>
 </html>
