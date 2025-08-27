@@ -207,3 +207,26 @@ hr.sep{
   border:0; height:1px; background: var(--border);
   margin: 18px 0;
 }
+
+/* ===== Email Modal ===== */
+.modal { position: fixed; inset: 0; z-index: 1000; }
+.modal__backdrop {
+  position: absolute; inset: 0; background: rgba(17,24,39,.55); /* slate-900 @ 55% */
+  backdrop-filter: blur(2px);
+}
+.modal__card {
+  position: relative; max-width: 520px; margin: 8vh auto; background: #fff;
+  border: 1px solid var(--border); border-radius: var(--radius); padding: 20px;
+  box-shadow: 0 10px 30px rgba(0,0,0,.12);
+}
+.modal__close {
+  position: absolute; top: 8px; right: 10px; border: none; background: transparent;
+  font-size: 22px; cursor: pointer; color: #64748b;
+}
+.modal__actions { display:flex; gap:10px; justify-content:flex-end; margin-top: 12px; }
+#emailInput {
+  width:100%; padding:12px 14px; border:1px solid var(--border); border-radius:10px;
+  margin-top: 10px;
+}
+.muted { color:#94a3b8; display:block; margin-top:8px; }
+.sr-only { position:absolute; width:1px; height:1px; padding:0; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
