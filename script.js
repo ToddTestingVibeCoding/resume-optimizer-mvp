@@ -1,6 +1,6 @@
 // ================================
 // Resume Optimizer - script.js
-// Lessons 6–12 consolidated
+// Lessons 6–12 consolidated + dynamic credits after email
 // ================================
 
 // ---------- Utility: tokenizing & keyword stats ----------
@@ -17,7 +17,6 @@ function tokenize(text) {
     .split(/\s+/)
     .filter(Boolean);
 }
-
 function keywordCounts(text) {
   const counts = new Map();
   for (const tok of tokenize(text)) {
@@ -27,30 +26,24 @@ function keywordCounts(text) {
   }
   return counts;
 }
-
 function topTerms(counts, limit = 20) {
   return [...counts.entries()]
     .sort((a,b) => b[1]-a[1])
     .slice(0, limit)
     .map(([term,count]) => ({ term, count }));
 }
-
 function missingTerms(jdTop, resumeCounts) {
   const missing = [];
   for (const {term, count} of jdTop) {
-    if (!resumeCounts.has(term)) {
-      missing.push({ term, jdCount: count });
-    }
+    if (!resumeCounts.has(term)) missing.push({ term, jdCount: count });
   }
   return missing;
 }
-
 function roughSuggestions(missing) {
   return missing.slice(0, 10).map(({term}) =>
     `Add a bullet using “${term}” in context (e.g., quantified impact or tool usage).`
   );
 }
-
 function renderList(el, items, formatter = (x)=>x) {
   if (!el) return;
   el.innerHTML = "";
@@ -65,19 +58,13 @@ function renderList(el, items, formatter = (x)=>x) {
 function showMessage(type, text) {
   // types: info | success | warn | error
   let box = document.getElementById("messages");
-  if (!box) {
-    // fallback: use summary area to display messages at top
-    box = document.getElementById("summary");
-  }
+  if (!box) box = document.getElementById("summary");
   if (!box) return;
   const div = document.createElement("div");
   div.className = `alert ${type}`;
   div.textContent = text;
   box.prepend(div);
-  // auto-remove after 5s
-  setTimeout(() => {
-    if (div && div.parentNode) div.parentNode.removeChild(div);
-  }, 5000);
+  setTimeout(() => { if (div?.parentNode) div.parentNode.removeChild(div); }, 5000);
 }
 
 // --- Friendly error mapping (Lesson 11.B) ---
@@ -85,7 +72,6 @@ function friendlyError(err) {
   try {
     const raw = typeof err === "string" ? err : (err?.message || "");
     if (!raw) return "Something went wrong. Please try again.";
-
     if (/invalid_api_key|Incorrect API key/i.test(raw)) {
       return "API key issue: check your OpenAI key in Vercel → Settings → Environment Variables.";
     }
@@ -107,7 +93,6 @@ function friendlyError(err) {
     if (/No file uploaded/i.test(raw)) {
       return "No file was received. Pick a .docx, .pdf, or .txt with the Upload button.";
     }
-
     try {
       const asJSON = JSON.parse(raw);
       if (asJSON?.error?.message) return asJSON.error.message;
@@ -115,7 +100,6 @@ function friendlyError(err) {
       if (asJSON?.detail) return String(asJSON.detail);
       if (asJSON?.error) return String(asJSON.error);
     } catch (_) {}
-
     return raw.replace(/["{}\\]+/g, "").slice(0, 240);
   } catch (_) {
     return "Unexpected error. Please try again.";
@@ -145,10 +129,9 @@ function spinnerHTML(text = "Working…") {
   return `<span class="spinner"></span>${text}`;
 }
 
-// ---------- Daily usage counter (Lesson 8) ----------
+// ---------- Daily usage counter (dynamic cap after email) ----------
 const BASE_DAILY_LIMIT = 5;
 function getDailyLimit() {
-  // If user has given an email, grant +5 more for today
   return localStorage.getItem("userEmail") ? BASE_DAILY_LIMIT + 5 : BASE_DAILY_LIMIT;
 }
 function getUsageKey() {
@@ -252,10 +235,7 @@ async function callRewriteAPI(resume, jd, opts = {}) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ resume, jd, ...opts })
   });
-  if (!r.ok) {
-    const t = await r.text();
-    throw new Error(t);
-  }
+  if (!r.ok) throw new Error(await r.text());
   const data = await r.json();
   return data.bullets || "";
 }
@@ -272,19 +252,19 @@ if (rewriteBtn) {
       return;
     }
 
-    // Daily limit gate (Lesson 12 hook)
-const used = getRewritesUsed();
-const cap = getDailyLimit();
-if (used >= cap) {
-  const hasEmail = !!localStorage.getItem("userEmail");
-  if (!hasEmail) {
-    openEmailModal();
-    showMessage("info", "You’ve reached today’s free limit. Add your email to unlock more.");
-  } else {
-    showMessage("warn", `Daily limit reached (${used}/${cap}). Please come back tomorrow.`);
-  }
-  return;
-}
+    // Daily limit gate (dynamic)
+    const used = getRewritesUsed();
+    const cap = getDailyLimit();
+    if (used >= cap) {
+      const hasEmail = !!localStorage.getItem("userEmail");
+      if (!hasEmail) {
+        openEmailModal();
+        showMessage("info", "You’ve reached today’s free limit. Add your email to unlock more.");
+      } else {
+        showMessage("warn", `Daily limit reached (${used}/${cap}). Please come back tomorrow.`);
+      }
+      return;
+    }
 
     if (summary) summary.innerHTML = spinnerHTML("Rewriting with AI…");
 
@@ -353,11 +333,7 @@ if (downloadBtn) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ title: "AI Suggested Resume Bullets", bullets })
       });
-
-      if (!r.ok) {
-        const t = await r.text();
-        throw new Error(`DOCX export failed: ${t}`);
-      }
+      if (!r.ok) throw new Error(`DOCX export failed: ${await r.text()}`);
 
       const blob = await r.blob();
       const url = URL.createObjectURL(blob);
@@ -374,7 +350,6 @@ if (downloadBtn) {
       showMessage("error", friendlyError(e));
     }
   });
-
   downloadBtn.addEventListener("click", handler);
 }
 
@@ -383,10 +358,8 @@ const uploadBtn = document.getElementById("uploadBtn");
 const resumeFileInput = document.getElementById("resumeFile");
 
 if (uploadBtn && resumeFileInput) {
-  // Open hidden file input
   uploadBtn.addEventListener("click", () => resumeFileInput.click());
 
-  // Send chosen file to backend (FormData)
   resumeFileInput.addEventListener("change", async () => {
     const file = resumeFileInput.files?.[0];
     if (!file) {
@@ -394,29 +367,25 @@ if (uploadBtn && resumeFileInput) {
       return;
     }
 
-    // Button morph to prevent double clicks
     const originalHTML = uploadBtn.innerHTML;
     uploadBtn.disabled = true;
     uploadBtn.innerHTML = `<span class="spinner"></span>Uploading…`;
 
     const formData = new FormData();
-    // IMPORTANT: backend expects "file" as the first field
-    formData.append("file", file);
+    formData.append("file", file); // backend expects key "file" first
 
     try {
-      const r = await fetch("/api/extract", { method: "POST", body: formData }); // no Content-Type header
+      const r = await fetch("/api/extract", { method: "POST", body: formData });
       if (!r.ok) throw new Error(await r.text());
       const data = await r.json();
       const resumeEl = document.getElementById("resume");
       if (resumeEl) resumeEl.value = data.text || "";
       showMessage("success", "File text extracted and added to your resume.");
-      // refresh counter since text changed (optional)
       const cnt = document.getElementById("resumeCount");
       if (cnt) cnt.textContent = `${(resumeEl?.value || "").length} characters`;
     } catch (err) {
       showMessage("error", friendlyError(err));
     } finally {
-      // Restore button and allow re-selecting the same file
       uploadBtn.disabled = false;
       uploadBtn.innerHTML = originalHTML;
       resumeFileInput.value = "";
@@ -424,7 +393,7 @@ if (uploadBtn && resumeFileInput) {
   });
 }
 
-// ---------- Local (no-AI) Alignment Helpers (Results right-side cards) ----------
+// ---------- Local (no-AI) Alignment Helpers (side cards) ----------
 function runLocalAlignment(resumeText, jdText) {
   const summaryEl = document.getElementById("summary");
   const topJdEl = document.getElementById("topJd");
@@ -450,9 +419,6 @@ function runLocalAlignment(resumeText, jdText) {
   renderList(missingEl, miss, x => x.term);
   renderList(suggestionsEl, sugg);
 }
-
-// Wire local analysis to the Analyze button as a fallback as well
-// (We already call /api/analyze above; this is optional to keep the side cards fresh)
 if (analyzeBtn) {
   analyzeBtn.addEventListener("click", () => {
     const resume = (document.getElementById("resume")?.value || "");
@@ -461,33 +427,26 @@ if (analyzeBtn) {
   });
 }
 
-// ===== Lesson 12: Email Modal helpers & wiring =====
+// ===== Lesson 12: Email Modal =====
 function openEmailModal() {
   const modal = document.getElementById("emailModal");
   if (!modal) return;
   modal.style.display = "block";
   modal.setAttribute("aria-hidden", "false");
 }
-
 function closeEmailModal() {
   const modal = document.getElementById("emailModal");
   if (!modal) return;
   modal.style.display = "none";
   modal.setAttribute("aria-hidden", "true");
 }
-
 function wireEmailModal() {
   const modal = document.getElementById("emailModal");
   if (!modal) return;
 
-  // Close on backdrop or X or "Maybe later"
   modal.addEventListener("click", (e) => {
     const t = e.target;
-    if (t?.dataset?.close === "true") {
-      closeEmailModal();
-      updateUsageCounter();
-showMessage("success", "Thanks! Extra credits unlocked for today.");
-    }
+    if (t?.dataset?.close === "true") closeEmailModal();
   });
 
   const form = document.getElementById("emailForm");
@@ -508,7 +467,7 @@ showMessage("success", "Thanks! Extra credits unlocked for today.");
     // Store locally so we don’t prompt again on this device
     localStorage.setItem("userEmail", email);
 
-    // Optional backend submit (non-blocking)
+    // Optional backend capture (non-blocking)
     try {
       submitBtn.disabled = true;
       submitBtn.textContent = "Saving…";
@@ -518,14 +477,15 @@ showMessage("success", "Thanks! Extra credits unlocked for today.");
         body: JSON.stringify({ email, ts: Date.now(), ua: navigator.userAgent })
       });
     } catch (_) {
-      // Non-fatal — still proceed
+      // non-fatal
     } finally {
       submitBtn.disabled = false;
       submitBtn.textContent = "Continue";
     }
 
     closeEmailModal();
-    showMessage("success", "Thanks! We’ll reach out with more credits and updates.");
+    updateUsageCounter(); // reflect new higher cap
+    showMessage("success", "Thanks! Extra credits unlocked for today.");
   });
 }
 document.addEventListener("DOMContentLoaded", wireEmailModal);
