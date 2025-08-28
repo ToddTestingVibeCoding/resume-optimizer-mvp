@@ -125,6 +125,49 @@ function clearDraft() {
   localStorage.removeItem(LS_KEYS.jd);
   localStorage.removeItem(LS_KEYS.savedAt);
 }
+// ---- Draft presence + timestamp helpers
+function hasDraft() {
+  return !!(localStorage.getItem(LS_KEYS.resume) || localStorage.getItem(LS_KEYS.jd));
+}
+function lastSavedAtText() {
+  const when = localStorage.getItem(LS_KEYS.savedAt);
+  return when ? new Date(when).toLocaleString() : null;
+}
+// ---- Inject "Restore draft?" banner if appropriate
+function maybeOfferDraftRestore() {
+  const resumeEl = document.getElementById("resume");
+  const jdEl = document.getElementById("jobDesc") || document.getElementById("jd");
+  if (!resumeEl || !jdEl) return;
+
+  // Only show if a draft exists AND the current fields are empty
+  const draftExists = hasDraft();
+  const bothEmpty =
+    !(resumeEl.value && resumeEl.value.trim()) &&
+    !(jdEl.value && jdEl.value.trim());
+  if (!draftExists || !bothEmpty) return;
+
+  const messages = document.getElementById("messages") || document.body;
+  const wrap = document.createElement("div");
+  wrap.className = "alert info";
+  const ts = lastSavedAtText();
+  wrap.innerHTML = `
+    <strong>Restore draft?</strong>
+    ${ts ? `<span style="opacity:.85">Saved ${ts}.</span>` : ""}
+    <div style="margin-top:8px; display:flex; gap:8px; flex-wrap:wrap;">
+      <button id="draftRestoreBtn" class="secondary">Load saved draft</button>
+      <button id="draftDismissBtn" class="secondary">Dismiss</button>
+    </div>
+  `;
+  messages.prepend(wrap);
+
+  wrap.querySelector("#draftRestoreBtn")?.addEventListener("click", () => {
+    loadDraft();
+    wrap.remove();
+  });
+  wrap.querySelector("#draftDismissBtn")?.addEventListener("click", () => {
+    wrap.remove();
+  });
+}
 
 // ---------- Messaging & UI helpers ----------
 function showMessage(type, text) {
@@ -513,6 +556,7 @@ if (resumeEl && jdEl) {
   resumeEl.addEventListener("input", debouncedSave);
   jdEl.addEventListener("input", debouncedSave);
 }
+document.addEventListener("DOMContentLoaded", maybeOfferDraftRestore);
 
 // ---------- Wire autosave on inputs ----------
 (function wireAutosave(){
@@ -539,4 +583,24 @@ if (resumeEl && jdEl) {
     localStorage.setItem(LS_KEYS.rewritesUsed, "0");
   }
   updateUsageCounter();
+})();
+
+// ---- Unsaved changes warning
+(function warnOnUnsavedChanges() {
+  const resumeEl = document.getElementById("resume");
+  const jdEl = document.getElementById("jobDesc") || document.getElementById("jd");
+  if (!resumeEl || !jdEl) return;
+
+  function isDirty() {
+    const savedResume = localStorage.getItem(LS_KEYS.resume) || "";
+    const savedJd = localStorage.getItem(LS_KEYS.jd) || "";
+    return (resumeEl.value || "") !== savedResume || (jdEl.value || "") !== savedJd;
+  }
+
+  window.addEventListener("beforeunload", (e) => {
+    if (isDirty()) {
+      e.preventDefault();
+      e.returnValue = ""; // triggers native confirmation dialog
+    }
+  });
 })();
