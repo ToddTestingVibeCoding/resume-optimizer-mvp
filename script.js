@@ -1,85 +1,44 @@
-// ================================
-// Resume Optimizer — script.js
-// Production build (Lessons 6–15)
-// ================================
+// =====================================
+// Resume Optimizer — script.js (Production)
+// Works with Lesson 15+ HTML/CSS
+// =====================================
 
 // ---------- Config ----------
 const BASE_REWRITES_PER_DAY = 5;
-const EMAIL_BONUS_REWRITES = 5;      // total 10/day after email
+const EMAIL_BONUS_REWRITES = 5;         // total 10/day when email provided
 const AUTOSAVE_DEBOUNCE_MS = 400;
 
-// ---------- LocalStorage Keys ----------
-const LS_KEYS = {
-  resume:   "ro.resume",
-  jd:       "ro.jd",
-  savedAt:  "ro.savedAt",
-  rewrites: "ro.rewritesUsed",
-  email:    "ro.email"               // presence unlocks bonus
+// LocalStorage keys
+const LS = {
+  resume: "ro.resume",
+  jd: "ro.jd",
+  savedAt: "ro.savedAt",
+  // usage
+  usageDate: "ro.usage.date",
+  usageCount: "ro.usage.count",
+  email: "ro.email",
+  emailBonusDate: "ro.emailBonus.date"
 };
 
-// ---------- Small helpers ----------
-const $ = (id) => document.getElementById(id);
-const on = (el, ev, fn) => el && el.addEventListener(ev, fn);
+// ---------- Small utilities ----------
+function $(id) { return document.getElementById(id); }
 
-function debounce(fn, delay) {
+function debounce(fn, ms) {
   let t;
-  return (...args) => {
-    clearTimeout(t);
-    t = setTimeout(() => fn(...args), delay);
-  };
+  return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
 }
 
-function cls(el, className, add = true) {
-  if (!el) return;
-  el.classList[add ? "add" : "remove"](className);
+function todayStr() {
+  const d = new Date();
+  return d.toISOString().slice(0,10); // YYYY-MM-DD
 }
 
-// ---------- Simple alert messaging ----------
-function showMessage(type, text) {
-  // types: info | success | warn | error
-  let box = $("messages");
-  if (!box) box = $("summary");
-  if (!box) return;
-
-  const div = document.createElement("div");
-  div.className = `alert ${type}`;
-  div.textContent = text;
-  box.prepend(div);
-
-  setTimeout(() => {
-    if (div && div.parentNode) div.parentNode.removeChild(div);
-  }, 5000);
-}
-
-// Human-friendly error mapper
-function friendlyError(err) {
-  try {
-    const msg = String(err?.message || err || "");
-    if (/rate limit/i.test(msg)) {
-      return "You’ve hit a temporary rate limit. Please try again in ~30 seconds.";
-    }
-    if (/invalid_api_key|api key/i.test(msg)) {
-      return "Server is missing a valid AI key. Ask the owner to set OPENAI_API_KEY in Vercel.";
-    }
-    if (/NetworkError|Failed to fetch/i.test(msg)) {
-      return "Network issue. Check your connection and try again.";
-    }
-    if (/No file uploaded/i.test(msg)) {
-      return "No file received. Pick a .docx, .pdf or .txt using the Upload button.";
-    }
-    return msg || "Something went wrong.";
-  } catch {
-    return "Something went wrong.";
-  }
-}
-
-// ---------- Spinner + loading wrapper ----------
 function spinnerHTML(text = "Working…") {
   return `<span class="spinner" aria-hidden="true"></span>${text}`;
 }
 
 function withLoading(btn, labelWhileLoading, fn) {
-  return async function(...args) {
+  return async (...args) => {
     let originalHTML;
     if (btn) {
       btn.disabled = true;
@@ -97,6 +56,44 @@ function withLoading(btn, labelWhileLoading, fn) {
   };
 }
 
+// ---------- Friendly error messages ----------
+function friendlyError(err) {
+  try {
+    // Network / fetch text strings
+    const msg = typeof err === "string" ? err : (err?.message || "");
+    if (/rate limit/i.test(msg) || /429/.test(msg)) {
+      return "We’re getting rate-limited. Please wait a moment and try again.";
+    }
+    if (/network/i.test(msg)) {
+      return "Network issue. Please check your connection and try again.";
+    }
+    // JSON payloads we bubbled up from API
+    const parsed = (() => { try { return JSON.parse(msg); } catch { return null; }})();
+    if (parsed?.error) {
+      if (/invalid_api_key/i.test(parsed.detail || "") || /api key/i.test(parsed.detail || "")) {
+        return "Server missing API key. If this is your project, add OPENAI_API_KEY in Vercel → Settings → Environment Variables.";
+      }
+      return parsed.detail || parsed.error || "Server error.";
+    }
+    return msg || "Something went wrong. Please try again.";
+  } catch {
+    return "Something went wrong. Please try again.";
+  }
+}
+
+// ---------- Simple alert messaging ----------
+function showMessage(type, text) {
+  // type: info | success | warn | error
+  let box = $("messages");
+  if (!box) box = $("summary");
+  if (!box) return;
+  const div = document.createElement("div");
+  div.className = `alert ${type}`;
+  div.textContent = text;
+  box.prepend(div);
+  setTimeout(() => { if (div.parentNode) div.parentNode.removeChild(div); }, 5000);
+}
+
 // ---------- Character counters ----------
 function updateCounterFrom(el, counterEl) {
   if (!el || !counterEl) return;
@@ -110,124 +107,130 @@ function wireCounters() {
 
   if (resumeEl && resumeCount) {
     updateCounterFrom(resumeEl, resumeCount);
-    on(resumeEl, "input", () => updateCounterFrom(resumeEl, resumeCount));
+    resumeEl.addEventListener("input", () => updateCounterFrom(resumeEl, resumeCount));
   }
   if (jobDescEl && jobDescCount) {
     updateCounterFrom(jobDescEl, jobDescCount);
-    on(jobDescEl, "input", () => updateCounterFrom(jobDescEl, jobDescCount));
+    jobDescEl.addEventListener("input", () => updateCounterFrom(jobDescEl, jobDescCount));
   }
 }
 
-// ---------- Usage limits (daily) ----------
-function getRewritesUsed() {
-  return parseInt(localStorage.getItem(LS_KEYS.rewrites) || "0", 10);
+// ---------- Draft autosave / load ----------
+function getResumeEl() { return $("resume"); }
+function getJdEl() { return $("jobDesc") || $("jd"); }
+
+function saveDraft() {
+  const r = getResumeEl(), j = getJdEl();
+  if (!r || !j) return;
+  localStorage.setItem(LS.resume, r.value || "");
+  localStorage.setItem(LS.jd, j.value || "");
+  localStorage.setItem(LS.savedAt, new Date().toISOString());
 }
-function setRewritesUsed(n) {
-  localStorage.setItem(LS_KEYS.rewrites, String(n));
+
+function loadDraft() {
+  const r = getResumeEl(), j = getJdEl();
+  if (!r || !j) return;
+  const resume = localStorage.getItem(LS.resume) || "";
+  const jd = localStorage.getItem(LS.jd) || "";
+  r.value = resume;
+  j.value = jd;
+
+  const resumeCount = $("resumeCount");
+  const jobDescCount = $("jobDescCount");
+  if (resumeCount) updateCounterFrom(r, resumeCount);
+  if (jobDescCount) updateCounterFrom(j, jobDescCount);
+}
+
+function clearDraft() {
+  localStorage.removeItem(LS.resume);
+  localStorage.removeItem(LS.jd);
+  localStorage.removeItem(LS.savedAt);
+}
+
+function maybeOfferLoadDraftBanner() {
+  const hasResume = !!localStorage.getItem(LS.resume);
+  const hasJd = !!localStorage.getItem(LS.jd);
+  if (!hasResume && !hasJd) return;
+
+  const box = $("messages");
+  if (!box) return;
+
+  const whenIso = localStorage.getItem(LS.savedAt);
+  const whenText = whenIso ? new Date(whenIso).toLocaleString() : "earlier";
+  const div = document.createElement("div");
+  div.className = "alert info";
+  div.innerHTML = `
+    You have a saved draft from <strong>${whenText}</strong>.
+    <button id="loadDraftInline" class="btn secondary" style="margin-left:8px;">Load Draft</button>
+    <button id="dismissDraftInline" class="btn ghost" style="margin-left:6px;">Dismiss</button>
+  `;
+  box.prepend(div);
+  div.querySelector("#loadDraftInline")?.addEventListener("click", () => { loadDraft(); div.remove(); });
+  div.querySelector("#dismissDraftInline")?.addEventListener("click", () => div.remove());
+}
+
+// Autosave wiring
+function wireAutosave() {
+  const r = getResumeEl(), j = getJdEl();
+  if (!r || !j) return;
+  const debounced = debounce(saveDraft, AUTOSAVE_DEBOUNCE_MS);
+  r.addEventListener("input", debounced);
+  j.addEventListener("input", debounced);
+}
+
+// ---------- Usage limits (rewrite per day) ----------
+function getDailyCap() {
+  // base + (bonus if email set today or previously granted today)
+  const email = localStorage.getItem(LS.email);
+  if (!email) return BASE_REWRITES_PER_DAY;
+
+  // Optional: you could only grant bonus once per day, but simpler: if email exists, grant bonus always.
+  return BASE_REWRITES_PER_DAY + EMAIL_BONUS_REWRITES;
+}
+
+function initUsageIfNeeded() {
+  const today = todayStr();
+  const storedDate = localStorage.getItem(LS.usageDate);
+  if (storedDate !== today) {
+    localStorage.setItem(LS.usageDate, today);
+    localStorage.setItem(LS.usageCount, "0");
+  }
+}
+
+function getRewritesUsed() {
+  initUsageIfNeeded();
+  return parseInt(localStorage.getItem(LS.usageCount) || "0", 10);
 }
 function incrementRewrites() {
-  setRewritesUsed(getRewritesUsed() + 1);
+  initUsageIfNeeded();
+  const used = getRewritesUsed() + 1;
+  localStorage.setItem(LS.usageCount, String(used));
   updateUsageCounter();
-}
-function getDailyLimit() {
-  const hasEmail = !!localStorage.getItem(LS_KEYS.email);
-  return BASE_REWRITES_PER_DAY + (hasEmail ? EMAIL_BONUS_REWRITES : 0);
 }
 function updateUsageCounter() {
   const el = $("usageCounter");
-  if (el) el.textContent = `${getRewritesUsed()} / ${getDailyLimit()} rewrites used today`;
+  if (!el) return;
+  el.textContent = `${getRewritesUsed()} / ${getDailyCap()} rewrites used today`;
 }
-function resetUsageIfNewDay() {
-  // cheap “per day” reset keyed to date string
-  const k = "ro.usageDate";
-  const today = new Date().toDateString();
-  const last = localStorage.getItem(k);
-  if (last !== today) {
-    localStorage.setItem(k, today);
-    setRewritesUsed(0);
+
+// Prompt for email to unlock more (simple modal-free prompt)
+async function maybeAskForEmail() {
+  // You can replace with a proper modal later
+  const email = window.prompt("Daily limit reached. Enter your email to unlock 5 more rewrites today:");
+  if (!email) return false;
+  // Very lightweight validation
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+    showMessage("warn", "That doesn’t look like a valid email.");
+    return false;
   }
+  localStorage.setItem(LS.email, email.trim());
+  localStorage.setItem(LS.emailBonusDate, todayStr());
+  updateUsageCounter();
+  showMessage("success", "Bonus unlocked! You now have 10 rewrites today.");
+  return true;
 }
 
-// ---------- Email unlock (soft gate) ----------
-function openEmailModal() {
-  const modal = $("emailModal");
-  if (modal) cls(modal, "open", true);
-  else {
-    // graceful fallback: prompt
-    const email = window.prompt("Enter your email to unlock more daily rewrites:");
-    if (email && /\S+@\S+\.\S+/.test(email)) {
-      localStorage.setItem(LS_KEYS.email, email.trim());
-      showMessage("success", "Thanks! Daily limit increased.");
-      updateUsageCounter();
-    }
-  }
-}
-function closeEmailModal() {
-  const modal = $("emailModal");
-  if (modal) cls(modal, "open", false);
-}
-function wireEmailModal() {
-  const form = $("emailForm");
-  const input = $("emailInput");
-  const closeBtn = $("emailClose");
-
-  on(closeBtn, "click", (e) => { e.preventDefault(); closeEmailModal(); });
-
-  on(form, "submit", (e) => {
-    e.preventDefault();
-    const val = (input?.value || "").trim();
-    if (!val || !/\S+@\S+\.\S+/.test(val)) {
-      showMessage("warn", "Please enter a valid email.");
-      return;
-    }
-    localStorage.setItem(LS_KEYS.email, val);
-    closeEmailModal();
-    updateUsageCounter();
-    showMessage("success", "Email saved. You now have extra daily rewrites!");
-  });
-}
-
-// ---------- Draft save/load/clear ----------
-function saveDraft() {
-  const resumeEl = $("resume");
-  const jdEl = $("jobDesc") || $("jd");
-  if (!resumeEl || !jdEl) return;
-
-  localStorage.setItem(LS_KEYS.resume, resumeEl.value || "");
-  localStorage.setItem(LS_KEYS.jd, jdEl.value || "");
-  localStorage.setItem(LS_KEYS.savedAt, new Date().toISOString());
-  showMessage("success", "Draft saved.");
-}
-function loadDraft() {
-  const resumeEl = $("resume");
-  const jdEl = $("jobDesc") || $("jd");
-  if (!resumeEl || !jdEl) return;
-
-  const resume = localStorage.getItem(LS_KEYS.resume) || "";
-  const jd = localStorage.getItem(LS_KEYS.jd) || "";
-  resumeEl.value = resume;
-  jdEl.value = jd;
-
-  // refresh counters
-  const rc = $("resumeCount");
-  const jc = $("jobDescCount");
-  if (rc) updateCounterFrom(resumeEl, rc);
-  if (jc) updateCounterFrom(jdEl, jc);
-
-  const when = localStorage.getItem(LS_KEYS.savedAt);
-  if (resume || jd) {
-    showMessage("info", when ? `Draft loaded (saved ${new Date(when).toLocaleString()}).` : "Draft loaded.");
-  } else {
-    showMessage("warn", "No saved draft found.");
-  }
-}
-function clearDraftOnly() {
-  localStorage.removeItem(LS_KEYS.resume);
-  localStorage.removeItem(LS_KEYS.jd);
-  localStorage.removeItem(LS_KEYS.savedAt);
-}
-
-// ---------- Tokenizing / keyword stats ----------
+// ---------- Keyword analysis (front-end) ----------
 const STOPWORDS = new Set([
   "the","and","or","to","a","of","in","for","on","with","is","are","as","at","by",
   "an","be","this","that","from","it","you","your","we","our","their","they",
@@ -265,7 +268,7 @@ function missingTerms(jdTop, resumeCounts) {
 }
 function roughSuggestions(missing) {
   return missing.slice(0, 10).map(({term}) =>
-    `Add a bullet using “${term}” in context (quantify impact, tool, scope).`
+    `Add a bullet using “${term}” in context (quantify impact, include tools, outcomes).`
   );
 }
 function renderList(el, items, formatter = (x)=>x) {
@@ -278,302 +281,268 @@ function renderList(el, items, formatter = (x)=>x) {
   }
 }
 
-// ---------- Frontend ↔ API calls ----------
-async function callAnalyzeAPI(resume, jobDesc) {
-  const r = await fetch("/api/analyze", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ resume, jobDesc })
+// ---------- Analyze Alignment (no AI) ----------
+function wireAnalyze() {
+  const analyzeBtn = $("analyzeBtn");
+  if (!analyzeBtn) return;
+
+  const handler = withLoading(analyzeBtn, "Analyzing…", async () => {
+    const resume = (getResumeEl()?.value || "").trim();
+    const jd = (getJdEl()?.value || "").trim();
+    if (!resume || !jd) {
+      showMessage("warn", "Please paste both Resume and Job Description.");
+      return;
+    }
+
+    // Local front-end stats
+    const summaryEl = $("summary");
+    const topJdEl = $("topJd");
+    const missingEl = $("missing");
+    const suggestionsEl = $("suggestions");
+
+    const resumeCounts = keywordCounts(resume);
+    const jdCounts = keywordCounts(jd);
+
+    const jdTop = topTerms(jdCounts, 20);
+    const miss = missingTerms(jdTop, resumeCounts);
+    const sugg = roughSuggestions(miss);
+
+    const coverage = ((jdTop.length - miss.length) / Math.max(1, jdTop.length) * 100).toFixed(0);
+    if (summaryEl) {
+      summaryEl.innerHTML = `
+        <div class="card">
+          <h3>Alignment Analysis</h3>
+          <p><strong>Coverage:</strong> ${coverage}% of top JD terms appear in your resume.</p>
+          <p><strong>Next step:</strong> Use “Suggested Actions” to weave missing terms into impact bullets.</p>
+        </div>
+      `;
+    }
+
+    renderList(topJdEl, jdTop, x => `${x.term} (${x.count})`);
+    renderList(missingEl, miss, x => x.term);
+    renderList(suggestionsEl, sugg);
+
+    showMessage("success", "Alignment analysis complete.");
   });
-  if (!r.ok) throw new Error(await r.text());
-  return r.json(); // { analysis: "..." }
+
+  analyzeBtn.addEventListener("click", handler);
 }
 
-async function callRewriteAPI(resume, jd, options = {}) {
+// ---------- AI Rewrite (secure backend) ----------
+async function callRewriteAPI(resume, jd, opts = {}) {
   const r = await fetch("/api/rewrite", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ resume, jd, options })
+    body: JSON.stringify({ resume, jd, ...opts })
   });
-  if (!r.ok) throw new Error(await r.text());
-  return r.json(); // { bullets: "..." }
+  if (!r.ok) {
+    const t = await r.text();
+    throw new Error(t);
+  }
+  const data = await r.json();
+  return data.bullets || "";
 }
 
-// ---------- Copy / Download helpers ----------
+function getDailyRemaining() {
+  return Math.max(0, getDailyCap() - getRewritesUsed());
+}
+
+function wireRewrite() {
+  const rewriteBtn = $("rewriteBtn");
+  if (!rewriteBtn) return;
+
+  const handler = withLoading(rewriteBtn, "Rewriting…", async () => {
+    const resume = (getResumeEl()?.value || "").trim();
+    const jd = (getJdEl()?.value || "").trim();
+    const summary = $("summary");
+    if (!resume || !jd) {
+      showMessage("warn", "Please paste both Resume and Job Description.");
+      return;
+    }
+
+    // Check limits
+    if (getDailyRemaining() <= 0) {
+      const unlocked = await maybeAskForEmail();
+      if (!unlocked && getDailyRemaining() <= 0) {
+        showMessage("warn", "Daily limit reached. Try again tomorrow.");
+        return;
+      }
+    }
+
+    // Optional UX controls (if present)
+    const tone = ($("tone")?.value || "Professional").toLowerCase();
+    const seniority = ($("seniority")?.value || "Mid").toLowerCase();
+    const role = ($("role")?.value || "General").toLowerCase();
+
+    if (summary) summary.innerHTML = `<div class="card">${spinnerHTML("Rewriting with AI…")}</div>`;
+
+    try {
+      const bulletsText = await callRewriteAPI(resume, jd, { tone, seniority, role });
+
+      const html = bulletsText
+        .split("\n")
+        .map(l => l.trim())
+        .filter(Boolean)
+        .map(l => l.replace(/^[-•*\d.)\s]+/, "")) // strip leading markers
+        .map(l => `<li>${l}</li>`)
+        .join("");
+
+      if (summary) {
+        summary.innerHTML = `
+          <div class="card">
+            <h3>AI Suggested Bullets</h3>
+            <ul>${html}</ul>
+          </div>
+        `;
+      }
+
+      incrementRewrites();
+      showMessage("success", `AI rewrite complete. (${getRewritesUsed()}/${getDailyCap()} used today)`);
+    } catch (e) {
+      if (summary) summary.innerHTML = "";
+      showMessage("error", friendlyError(e));
+    }
+  });
+
+  rewriteBtn.addEventListener("click", handler);
+}
+
+// ---------- Copy + Download ----------
 function getCurrentBullets() {
-  const summary = $("summary");
-  const lis = summary ? summary.querySelectorAll("li") : [];
+  const lis = $("summary")?.querySelectorAll("li") || [];
   return Array.from(lis).map(li => li.textContent.trim()).filter(Boolean);
 }
 
-// ---------- Wire up UI once DOM ready ----------
-document.addEventListener("DOMContentLoaded", () => {
-  resetUsageIfNewDay();
-  updateUsageCounter();
-  wireCounters();
-  wireEmailModal();
+function wireCopy() {
+  const copyBtn = $("copyBtn");
+  if (!copyBtn) return;
+  const handler = withLoading(copyBtn, "Copying…", async () => {
+    const bullets = getCurrentBullets();
+    if (!bullets.length) { showMessage("warn", "No AI bullets to copy yet!"); return; }
+    try {
+      await navigator.clipboard.writeText(bullets.join("\n"));
+      showMessage("success", "Copied AI bullets to clipboard.");
+    } catch (err) {
+      showMessage("error", friendlyError(err));
+    }
+  });
+  copyBtn.addEventListener("click", handler);
+}
 
-  // Elements
-  const resumeEl  = $("resume");
-  const jdEl      = $("jobDesc") || $("jd");
+function wireDownload() {
+  const downloadBtn = $("downloadBtn");
+  if (!downloadBtn) return;
 
-  // ----- Upload resume (hidden input + button) -----
+  const handler = withLoading(downloadBtn, "Preparing DOCX…", async () => {
+    const bullets = getCurrentBullets();
+    if (!bullets.length) { showMessage("warn", "No AI bullets to download yet!"); return; }
+
+    try {
+      const r = await fetch("/api/download-docx", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: "AI Suggested Resume Bullets", bullets })
+      });
+      if (!r.ok) throw new Error(await r.text());
+
+      const blob = await r.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "ai_resume_bullets.docx";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      showMessage("success", "Downloaded DOCX. Open it in Word/Pages.");
+    } catch (e) {
+      showMessage("error", friendlyError(e));
+    }
+  });
+
+  downloadBtn.addEventListener("click", handler);
+}
+
+// ---------- Clear + Draft buttons ----------
+function wireClear() {
+  const clearBtn = $("clearBtn");
+  if (!clearBtn) return;
+  clearBtn.addEventListener("click", () => {
+    const ids = ["resume","jobDesc","jd","summary","topJd","missing","suggestions"];
+    for (const id of ids) {
+      const el = $(id);
+      if (!el) continue;
+      if (el.tagName === "TEXTAREA" || el.tagName === "INPUT") el.value = "";
+      else el.innerHTML = "";
+    }
+    clearDraft();
+    const rc = $("resumeCount"); if (rc) rc.textContent = "0 characters";
+    const jc = $("jobDescCount"); if (jc) jc.textContent = "0 characters";
+    showMessage("info", "Cleared. Paste your fresh text to continue.");
+  });
+}
+function wireDraftButtons() {
+  $("saveBtn")?.addEventListener("click", () => { saveDraft(); showMessage("success","Draft saved."); });
+  $("loadBtn")?.addEventListener("click", () => { loadDraft(); showMessage("success","Draft loaded."); });
+  $("clearDraftBtn")?.addEventListener("click", () => { clearDraft(); showMessage("success","Draft cleared."); });
+}
+
+// ---------- Resume file upload → /api/extract ----------
+function wireUpload() {
   const uploadBtn = $("uploadBtn");
   const resumeFileInput = $("resumeFile");
+  if (!uploadBtn || !resumeFileInput) return;
 
-  on(uploadBtn, "click", () => resumeFileInput && resumeFileInput.click());
+  uploadBtn.addEventListener("click", () => resumeFileInput.click());
 
-  on(resumeFileInput, "change", async () => {
-    const file = resumeFileInput?.files?.[0];
-    if (!file) {
-      showMessage("warn", "No file selected.");
-      return;
-    }
+  resumeFileInput.addEventListener("change", async () => {
+    const file = resumeFileInput.files?.[0];
+    if (!file) { showMessage("warn", "No file selected."); return; }
+
+    const formData = new FormData();
+    formData.append("file", file); // MUST be 'file' key for backend
+
     try {
-      const formData = new FormData();
-      // Must be "file" — backend expects this name first.
-      formData.append("file", file);
       showMessage("info", "Extracting text from file…");
-
       const r = await fetch("/api/extract", { method: "POST", body: formData });
       if (!r.ok) throw new Error(await r.text());
       const data = await r.json();
-
+      const resumeEl = getResumeEl();
       if (resumeEl) resumeEl.value = data.text || "";
+
+      // Update counter and autosave
       const rc = $("resumeCount");
-      if (rc) updateCounterFrom(resumeEl, rc);
+      if (rc && resumeEl) updateCounterFrom(resumeEl, rc);
+      saveDraft();
 
       showMessage("success", "File text extracted and added to your resume.");
     } catch (err) {
       showMessage("error", friendlyError(err));
     } finally {
-      if (resumeFileInput) resumeFileInput.value = "";
+      resumeFileInput.value = ""; // allow re-selecting same file
     }
   });
+}
 
-  // ----- Analyze Alignment (API + local keyword lists) -----
-  const analyzeBtn = $("analyzeBtn");
-  if (analyzeBtn) {
-    const handler = withLoading(analyzeBtn, "Analyzing…", async () => {
-      const resume = (resumeEl?.value || "").trim();
-      const jobDesc = (jdEl?.value || "").trim();
-      if (!resume || !jobDesc) {
-        showMessage("warn", "Please paste both Resume and Job Description.");
-        return;
-      }
-      try {
-        // 1) Narrative from backend
-        const data = await callAnalyzeAPI(resume, jobDesc);
+// ---------- Init ----------
+document.addEventListener("DOMContentLoaded", () => {
+  // Counters and draft
+  wireCounters();
+  wireAutosave();
+  loadDraft();                 // silent restore on refresh
+  maybeOfferLoadDraftBanner(); // polite banner (keeps silent restore too)
 
-        // 2) Render analysis
-        const summary = $("summary");
-        if (summary) {
-          summary.innerHTML = `
-            <div class="card">
-              <h3>Alignment Analysis</h3>
-              <p>${(data.analysis || "").replace(/\n/g, "<br>")}</p>
-            </div>
-          `;
-        }
+  // Buttons / actions
+  wireAnalyze();
+  wireRewrite();
+  wireCopy();
+  wireDownload();
+  wireClear();
+  wireDraftButtons();
+  wireUpload();
 
-        // 3) Local keyword side-panels
-        const resumeCounts = keywordCounts(resume);
-        const jdCounts = keywordCounts(jobDesc);
-        const jdTop = topTerms(jdCounts, 20);
-        const miss = missingTerms(jdTop, resumeCounts);
-        const sugg = roughSuggestions(miss);
-
-        renderList($("topJd"), jdTop, x => `${x.term} (${x.count})`);
-        renderList($("missing"), miss, x => x.term);
-        renderList($("suggestions"), sugg);
-
-        showMessage("success", "Alignment analysis complete.");
-      } catch (err) {
-        showMessage("error", friendlyError(err));
-      }
-    });
-    on(analyzeBtn, "click", handler);
-  }
-
-  // ----- Clear all content -----
-  const clearBtn = $("clearBtn");
-  if (clearBtn) {
-    on(clearBtn, "click", () => {
-      const ids = ["resume", "jobDesc", "jd", "summary", "topJd", "missing", "suggestions"];
-      for (const id of ids) {
-        const el = $(id);
-        if (!el) continue;
-        if (el.tagName === "TEXTAREA" || el.tagName === "INPUT") el.value = "";
-        else el.innerHTML = "";
-      }
-      // counters
-      const rc = $("resumeCount"); if (rc) rc.textContent = "0 characters";
-      const jc = $("jobDescCount"); if (jc) jc.textContent = "0 characters";
-
-      // clear draft content, not usage/email
-      clearDraftOnly();
-      showMessage("info", "Cleared. Paste fresh text to continue.");
-    });
-  }
-
-  // ----- Rewrite with AI (usage limits + controls) -----
-  const rewriteBtn = $("rewriteBtn");
-  if (rewriteBtn) {
-    const handler = withLoading(rewriteBtn, "Rewriting…", async () => {
-      const resume = (resumeEl?.value || "").trim();
-      const jd = (jdEl?.value || "").trim();
-      if (!resume || !jd) {
-        showMessage("warn", "Please paste both Resume and Job Description.");
-        return;
-      }
-
-      // limits
-      const used = getRewritesUsed();
-      const limit = getDailyLimit();
-      if (used >= limit) {
-        showMessage("warn", "Daily limit reached. Enter your email to unlock more.");
-        openEmailModal();
-        return;
-      }
-
-      // Lesson 7 controls (optional)
-      const tone = ($("tone")?.value || "Professional").toLowerCase();
-      const seniority = ($("seniority")?.value || "Mid").toLowerCase();
-      const role = ($("role")?.value || "General").toLowerCase();
-
-      const summary = $("summary");
-      if (summary) summary.innerHTML = `<div class="card">${spinnerHTML("Rewriting with AI…")}</div>`;
-
-      try {
-        const { bullets = "" } = await callRewriteAPI(resume, jd, { tone, seniority, role });
-
-        const html = bullets
-          .split("\n")
-          .map(l => l.trim())
-          .filter(Boolean)
-          .map(l => l.replace(/^[-•*\d.)\s]+/, "")) // strip any leading markers
-          .map(l => `<li>${l}</li>`)
-          .join("");
-
-        if (summary) {
-          summary.innerHTML = `
-            <div class="card">
-              <h3>AI Suggested Bullets</h3>
-              <ul>${html}</ul>
-            </div>
-          `;
-        }
-
-        incrementRewrites();
-        showMessage("success", `AI rewrite complete. (${getRewritesUsed()}/${getDailyLimit()} used today)`);
-      } catch (err) {
-        if (summary) summary.innerHTML = "";
-        showMessage("error", friendlyError(err));
-      }
-    });
-
-    on(rewriteBtn, "click", handler);
-  }
-
-  // ----- Save / Load / Clear draft buttons -----
-  on($("saveBtn"), "click", saveDraft);
-  on($("loadBtn"), "click", loadDraft);
-  on($("clearDraftBtn"), "click", () => {
-    clearDraftOnly();
-    showMessage("success", "Draft cleared.");
-  });
-
-  // ----- Autosave (resume + jobDesc) -----
-  if (resumeEl && jdEl) {
-    const debouncedSave = debounce(saveDraft, AUTOSAVE_DEBOUNCE_MS);
-    on(resumeEl, "input", debouncedSave);
-    on(jdEl, "input", debouncedSave);
-  }
-
-  // ----- Copy bullets -----
-  const copyBtn = $("copyBtn");
-  if (copyBtn) {
-    const handler = withLoading(copyBtn, "Copying…", async () => {
-      const bullets = getCurrentBullets();
-      if (!bullets.length) {
-        showMessage("warn", "No AI bullets to copy yet!");
-        return;
-      }
-      try {
-        await navigator.clipboard.writeText(bullets.join("\n"));
-        showMessage("success", "Copied AI bullets to clipboard.");
-      } catch (err) {
-        showMessage("error", "Copy failed: " + friendlyError(err));
-      }
-    });
-    on(copyBtn, "click", handler);
-  }
-
-  // ----- Download DOCX via backend -----
-  const downloadBtn = $("downloadBtn");
-  if (downloadBtn) {
-    const handler = withLoading(downloadBtn, "Preparing…", async () => {
-      const bullets = getCurrentBullets();
-      if (!bullets.length) {
-        showMessage("warn", "No AI bullets to download yet!");
-        return;
-      }
-      try {
-        const r = await fetch("/api/download-docx", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ title: "AI Suggested Resume Bullets", bullets })
-        });
-        if (!r.ok) throw new Error(await r.text());
-
-        const blob = await r.blob();
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = "ai_resume_bullets.docx";
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-
-        showMessage("success", "Downloaded DOCX. Open it in Word/Pages.");
-      } catch (err) {
-        showMessage("error", friendlyError(err));
-      }
-    });
-    on(downloadBtn, "click", handler);
-  }
-
-  // ----- Suggest loading saved draft once (polite banner) -----
-  try {
-    const hasSavedResume = !!localStorage.getItem(LS_KEYS.resume);
-    const hasSavedJd = !!localStorage.getItem(LS_KEYS.jd);
-    const bannerShownKey = "ro.bannerShown";
-    const alreadyShown = localStorage.getItem(bannerShownKey);
-
-    if ((hasSavedResume || hasSavedJd) && !alreadyShown) {
-      const banner = document.createElement("div");
-      banner.className = "alert info";
-      banner.innerHTML = `
-        Looks like you have a saved draft.
-        <button id="loadDraftNow" class="secondary" style="margin-left:10px;">Load now</button>
-        <button id="dismissDraftBanner" class="secondary" style="margin-left:6px;">Dismiss</button>
-      `;
-      const mount = $("messages") || document.body;
-      mount.prepend(banner);
-
-      on($("loadDraftNow"), "click", () => {
-        loadDraft();
-        localStorage.setItem(bannerShownKey, "1");
-        banner.remove();
-      });
-      on($("dismissDraftBanner"), "click", () => {
-        localStorage.setItem(bannerShownKey, "1");
-        banner.remove();
-      });
-    }
-  } catch { /* no-op */ }
-
-  // final counter render
+  // Usage counter on load
+  initUsageIfNeeded();
   updateUsageCounter();
 });
