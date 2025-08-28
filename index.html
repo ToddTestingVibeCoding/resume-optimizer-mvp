@@ -4,14 +4,11 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Resume Optimizer (MVP)</title>
-
-  <!-- Fonts + Styles -->
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <!-- Site Header -->
   <header class="site-header">
     <div class="container">
       <h1>Resume Optimizer</h1>
@@ -20,38 +17,32 @@
   </header>
 
   <main class="container">
-
-    <!-- Inline messages / alerts (JS writes here) -->
+    <!-- Inline messages -->
     <div id="messages" aria-live="polite"></div>
 
     <!-- Autosave banner (Lesson 15) -->
     <div id="autosaveBanner" class="banner" style="display:none;"></div>
 
-    <!-- Editor Section -->
+    <!-- STEP 1 -->
     <section class="card">
       <div class="section-head">
         <h2>Step 1 — Paste Your Content</h2>
-        <span class="pill">Works best with detailed text</span>
+        <span class="pill">DOCX/PDF/TXT supported</span>
       </div>
 
-      <!-- Two-column editor grid -->
       <div class="editor-grid">
-        <!-- Resume -->
         <div class="editor-pane">
           <label for="resume" class="label">Resume</label>
           <textarea id="resume" rows="18" placeholder="Paste your resume here…"></textarea>
           <div class="subrow">
             <small class="char-count" id="resumeCount">0 characters</small>
             <div class="upload-inline">
-              <!-- Hidden input that JS clicks -->
               <input id="resumeFile" type="file" accept=".docx,.pdf,.txt" style="display:none" />
               <button id="uploadBtn" type="button" class="btn ghost small">Upload Resume File</button>
             </div>
           </div>
-          <small class="hint">DOCX/PDF/TXT supported. We’ll extract text automatically.</small>
         </div>
 
-        <!-- Job Description -->
         <div class="editor-pane">
           <label for="jobDesc" class="label">Job Description</label>
           <textarea id="jobDesc" rows="18" placeholder="Paste the job description here…"></textarea>
@@ -62,11 +53,11 @@
       </div>
     </section>
 
-    <!-- Options -->
+    <!-- STEP 2 -->
     <section class="card">
       <div class="section-head">
         <h2>Step 2 — Tailor the Tone</h2>
-        <span class="pill">Optional: refine AI style</span>
+        <span class="pill">Optional</span>
       </div>
 
       <div class="options-row">
@@ -104,67 +95,58 @@
       </div>
     </section>
 
-    <!-- Actions -->
+    <!-- STEP 3 -->
     <section class="card">
       <div class="section-head">
         <h2>Step 3 — Generate & Manage</h2>
       </div>
 
       <div class="controls">
-        <!-- Primary actions (order tweaked per your preference) -->
+        <!-- Primary (your preferred order) -->
         <button id="rewriteBtn" class="btn primary">Rewrite for Alignment (AI)</button>
         <button id="analyzeBtn" class="btn secondary">Analyze Alignment</button>
         <button id="clearBtn" class="btn ghost">Clear</button>
 
-        <!-- Draft controls -->
         <span class="divider"></span>
         <button id="saveBtn" class="btn secondary">Save Draft</button>
         <button id="loadBtn" class="btn secondary">Load Draft</button>
         <button id="clearDraftBtn" class="btn ghost">Clear Draft</button>
 
-        <!-- Utilities -->
         <span class="divider"></span>
         <button id="copyBtn" class="btn secondary">Copy AI Bullets</button>
         <button id="downloadBtn" class="btn secondary">Download as DOCX</button>
 
-        <!-- Usage counter -->
         <span class="spacer"></span>
         <p id="usageCounter" class="usage-counter">0 / 5 rewrites used today</p>
       </div>
     </section>
 
-    <!-- Results -->
+    <!-- RESULTS -->
     <section class="results-grid">
-      <!-- AI summary / bullets live here -->
       <div class="card">
         <h3>Results</h3>
         <div id="summary"></div>
       </div>
-
-      <!-- Alignment insights -->
       <div class="card">
         <h3>Top JD Terms</h3>
         <ul id="topJd"></ul>
       </div>
-
       <div class="card">
         <h3>Missing Terms</h3>
         <ul id="missing"></ul>
       </div>
-
       <div class="card">
         <h3>Suggested Additions</h3>
         <ul id="suggestions"></ul>
       </div>
     </section>
 
-    <!-- Footer -->
     <footer class="footer">
       <p>Built with ❤️ to help you land the role.</p>
     </footer>
   </main>
 
-  <!-- Email Capture Modal (Lesson 12) -->
+  <!-- Email Modal (Lesson 12) -->
   <div id="emailModalBackdrop" class="modal-backdrop" style="display:none;"></div>
   <div id="emailModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="emailModalTitle" style="display:none;">
     <div class="modal-header">
@@ -174,7 +156,7 @@
     <div class="modal-body">
       <p>You’ve hit today’s free limit. Enter your email to get extra daily rewrites.</p>
       <input id="emailInput" type="email" placeholder="you@example.com" />
-      <small class="hint">We’ll send occasional product updates. Unsubscribe anytime.</small>
+      <small class="hint">We’ll send occasional updates. Unsubscribe anytime.</small>
     </div>
     <div class="modal-footer">
       <button id="emailSubmit" class="btn primary">Continue</button>
@@ -182,7 +164,6 @@
     </div>
   </div>
 
-  <!-- App Script -->
   <script src="script.js" defer></script>
 </body>
 </html>
