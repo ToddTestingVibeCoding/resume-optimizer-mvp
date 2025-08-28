@@ -5,43 +5,44 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Resume Optimizer (MVP)</title>
   <link rel="stylesheet" href="styles.css" />
-  <!-- Inter for clean UI -->
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
 </head>
 <body>
-  <!-- Site Header -->
+  <!-- Decorative background glow -->
+  <div class="bg-glow"></div>
+
   <header class="site-header">
     <h1>Resume Optimizer</h1>
     <p class="tagline">Paste your resume + job description → get tailored, impact-focused bullets.</p>
   </header>
 
   <main class="container">
-    <!-- Alerts / messages (JS writes here) -->
+    <!-- Alerts / messages -->
     <div id="messages" aria-live="polite"></div>
 
-    <!-- Editor: Resume + JD side-by-side on wide, stacked on mobile -->
+    <!-- Editor -->
     <section class="editor-grid card">
       <div class="editor-col">
-        <label for="resume" class="sr-only">Resume</label>
         <h2 class="section-title">Step 1 — Your Resume</h2>
+        <label for="resume" class="sr-only">Resume</label>
         <textarea id="resume" rows="16" placeholder="Paste your resume here…"></textarea>
         <small class="char-count" id="resumeCount">0 characters</small>
 
-        <!-- Hidden file input + visible trigger button -->
+        <!-- Hidden native input + visible trigger -->
         <input id="resumeFile" type="file" accept=".docx,.pdf,.txt" style="display:none" />
         <div class="file-actions">
-          <button id="uploadBtn" type="button" class="secondary">Upload Resume File</button>
+          <button id="uploadBtn" type="button" class="btn secondary">Upload Resume File</button>
         </div>
       </div>
 
       <div class="editor-col">
-        <label for="jobDesc" class="sr-only">Job Description</label>
         <h2 class="section-title">Step 2 — Job Description</h2>
+        <label for="jobDesc" class="sr-only">Job Description</label>
         <textarea id="jobDesc" rows="16" placeholder="Paste the job description (PD) here…"></textarea>
         <small class="char-count" id="jobDescCount">0 characters</small>
 
-        <!-- Optional compatibility: older code may read #jd -->
+        <!-- Legacy compatibility -->
         <textarea id="jd" style="display:none"></textarea>
       </div>
     </section>
@@ -80,21 +81,23 @@
         </div>
       </div>
 
-      <!-- Action buttons (order preserved per your preference) -->
       <div class="actions">
-        <button id="analyzeBtn" class="secondary">Analyze Alignment</button>
-        <button id="rewriteBtn" class="ai-btn">Rewrite for Alignment (AI)</button>
-        <button id="clearBtn" class="secondary">Clear</button>
+        <button id="analyzeBtn" class="btn ghost">Analyze Alignment</button>
+        <button id="rewriteBtn" class="btn ai-btn">Rewrite for Alignment (AI)</button>
+        <button id="clearBtn" class="btn secondary">Clear</button>
 
-        <button id="saveBtn" class="secondary">Save Draft</button>
-        <button id="loadBtn" class="secondary">Load Draft</button>
-        <button id="clearDraftBtn" class="secondary">Clear Draft</button>
+        <span class="divider"></span>
 
-        <button id="copyBtn">Copy AI Bullets</button>
-        <button id="downloadBtn">Download as DOCX</button>
+        <button id="saveBtn" class="btn secondary">Save Draft</button>
+        <button id="loadBtn" class="btn secondary">Load Draft</button>
+        <button id="clearDraftBtn" class="btn secondary">Clear Draft</button>
+
+        <span class="spacer"></span>
+
+        <button id="copyBtn" class="btn sky">Copy AI Bullets</button>
+        <button id="downloadBtn" class="btn sun">Download as DOCX</button>
       </div>
 
-      <!-- Daily usage counter -->
       <p id="usageCounter" class="usage-counter">0 / 5 rewrites used today</p>
     </section>
 
