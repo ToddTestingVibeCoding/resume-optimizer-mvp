@@ -4,173 +4,130 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Resume Optimizer (MVP)</title>
+  <link rel="stylesheet" href="styles.css" />
+  <!-- Inter for clean UI -->
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
+  <!-- Site Header -->
   <header class="site-header">
-    <div class="container">
-      <h1>Resume Optimizer</h1>
-      <p class="tagline">Paste your resume + job description → get tailored, impact-focused bullets.</p>
-    </div>
+    <h1>Resume Optimizer</h1>
+    <p class="tagline">Paste your resume + job description → get tailored, impact-focused bullets.</p>
   </header>
 
   <main class="container">
-    <!-- Inline messages -->
+    <!-- Alerts / messages (JS writes here) -->
     <div id="messages" aria-live="polite"></div>
 
-    <!-- Autosave banner (Lesson 15) -->
-    <div id="autosaveBanner" class="banner" style="display:none;"></div>
+    <!-- Editor: Resume + JD side-by-side on wide, stacked on mobile -->
+    <section class="editor-grid card">
+      <div class="editor-col">
+        <label for="resume" class="sr-only">Resume</label>
+        <h2 class="section-title">Step 1 — Your Resume</h2>
+        <textarea id="resume" rows="16" placeholder="Paste your resume here…"></textarea>
+        <small class="char-count" id="resumeCount">0 characters</small>
 
-    <!-- STEP 1 -->
-    <section class="card">
-      <div class="section-head">
-        <h2>Step 1 — Paste Your Content</h2>
-        <span class="pill">DOCX/PDF/TXT supported</span>
+        <!-- Hidden file input + visible trigger button -->
+        <input id="resumeFile" type="file" accept=".docx,.pdf,.txt" style="display:none" />
+        <div class="file-actions">
+          <button id="uploadBtn" type="button" class="secondary">Upload Resume File</button>
+        </div>
       </div>
 
-      <div class="editor-grid">
-        <div class="editor-pane">
-          <label for="resume" class="label">Resume</label>
-          <textarea id="resume" rows="18" placeholder="Paste your resume here…"></textarea>
-          <div class="subrow">
-            <small class="char-count" id="resumeCount">0 characters</small>
-            <div class="upload-inline">
-              <input id="resumeFile" type="file" accept=".docx,.pdf,.txt" style="display:none" />
-              <button id="uploadBtn" type="button" class="btn ghost small">Upload Resume File</button>
-            </div>
-          </div>
-        </div>
+      <div class="editor-col">
+        <label for="jobDesc" class="sr-only">Job Description</label>
+        <h2 class="section-title">Step 2 — Job Description</h2>
+        <textarea id="jobDesc" rows="16" placeholder="Paste the job description (PD) here…"></textarea>
+        <small class="char-count" id="jobDescCount">0 characters</small>
 
-        <div class="editor-pane">
-          <label for="jobDesc" class="label">Job Description</label>
-          <textarea id="jobDesc" rows="18" placeholder="Paste the job description here…"></textarea>
-          <div class="subrow">
-            <small class="char-count" id="jobDescCount">0 characters</small>
-          </div>
-        </div>
+        <!-- Optional compatibility: older code may read #jd -->
+        <textarea id="jd" style="display:none"></textarea>
       </div>
     </section>
 
-    <!-- STEP 2 -->
-    <section class="card">
-      <div class="section-head">
-        <h2>Step 2 — Tailor the Tone</h2>
-        <span class="pill">Optional</span>
-      </div>
-
-      <div class="options-row">
-        <label class="option">
-          <span>Tone</span>
+    <!-- Controls -->
+    <section class="controls card">
+      <div class="control-row">
+        <div class="control-group">
+          <label for="tone">Tone</label>
           <select id="tone">
             <option>Professional</option>
-            <option>Concise</option>
             <option>Confident</option>
-            <option>Friendly</option>
+            <option>Impactful</option>
+            <option>Conversational</option>
           </select>
-        </label>
-
-        <label class="option">
-          <span>Seniority</span>
+        </div>
+        <div class="control-group">
+          <label for="seniority">Seniority</label>
           <select id="seniority">
-            <option>Mid</option>
-            <option>Entry</option>
+            <option>Junior</option>
+            <option selected>Mid</option>
             <option>Senior</option>
-            <option>Lead</option>
+            <option>Executive</option>
           </select>
-        </label>
-
-        <label class="option">
-          <span>Role Focus</span>
+        </div>
+        <div class="control-group">
+          <label for="role">Role</label>
           <select id="role">
             <option>Engineering</option>
             <option>Product</option>
             <option>Design</option>
             <option>Marketing</option>
-            <option>Sales</option>
             <option>Operations</option>
+            <option>Sales</option>
           </select>
-        </label>
+        </div>
       </div>
+
+      <!-- Action buttons (order preserved per your preference) -->
+      <div class="actions">
+        <button id="analyzeBtn" class="secondary">Analyze Alignment</button>
+        <button id="rewriteBtn" class="ai-btn">Rewrite for Alignment (AI)</button>
+        <button id="clearBtn" class="secondary">Clear</button>
+
+        <button id="saveBtn" class="secondary">Save Draft</button>
+        <button id="loadBtn" class="secondary">Load Draft</button>
+        <button id="clearDraftBtn" class="secondary">Clear Draft</button>
+
+        <button id="copyBtn">Copy AI Bullets</button>
+        <button id="downloadBtn">Download as DOCX</button>
+      </div>
+
+      <!-- Daily usage counter -->
+      <p id="usageCounter" class="usage-counter">0 / 5 rewrites used today</p>
     </section>
 
-    <!-- STEP 3 -->
-    <section class="card">
-      <div class="section-head">
-        <h2>Step 3 — Generate & Manage</h2>
-      </div>
-
-      <div class="controls">
-        <!-- Primary (your preferred order) -->
-        <button id="rewriteBtn" class="btn primary">Rewrite for Alignment (AI)</button>
-        <button id="analyzeBtn" class="btn secondary">Analyze Alignment</button>
-        <button id="clearBtn" class="btn ghost">Clear</button>
-
-        <span class="divider"></span>
-        <button id="saveBtn" class="btn secondary">Save Draft</button>
-        <button id="loadBtn" class="btn secondary">Load Draft</button>
-        <button id="clearDraftBtn" class="btn ghost">Clear Draft</button>
-
-        <span class="divider"></span>
-        <button id="copyBtn" class="btn secondary">Copy AI Bullets</button>
-        <button id="downloadBtn" class="btn secondary">Download as DOCX</button>
-
-        <span class="spacer"></span>
-        <p id="usageCounter" class="usage-counter">0 / 5 rewrites used today</p>
+    <!-- Results -->
+    <section class="results">
+      <div class="results-grid">
+        <div class="card">
+          <h3>Alignment Analysis</h3>
+          <div id="summary"></div>
+        </div>
+        <div class="card">
+          <h3>Top JD Terms</h3>
+          <ul id="topJd"></ul>
+        </div>
+        <div class="card">
+          <h3>Missing Terms</h3>
+          <ul id="missing"></ul>
+        </div>
+        <div class="card wide">
+          <h3>Suggested Actions</h3>
+          <ul id="suggestions"></ul>
+        </div>
       </div>
     </section>
-
-    <!-- RESULTS -->
- <section class="results">
-  <div class="results-grid-3">
-    <!-- Row 1 -->
-    <div class="card analysis" id="analysisCard">
-      <h3>Alignment Analysis</h3>
-      <div id="summary"></div>
-    </div>
-
-    <div class="card">
-      <h3>Top JD Terms</h3>
-      <ul id="topJd"></ul>
-    </div>
-
-    <div class="card">
-      <h3>Missing Terms</h3>
-      <ul id="missing"></ul>
-    </div>
-
-    <!-- Row 2 -->
-    <div class="card full">
-      <h3>Suggested Actions</h3>
-      <ul id="suggestions"></ul>
-    </div>
-  </div>
-</section>
-
-    <footer class="footer">
-      <p>Built with ❤️ to help you land the role.</p>
-    </footer>
   </main>
 
-  <!-- Email Modal (Lesson 12) -->
-  <div id="emailModalBackdrop" class="modal-backdrop" style="display:none;"></div>
-  <div id="emailModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="emailModalTitle" style="display:none;">
-    <div class="modal-header">
-      <h3 id="emailModalTitle">Unlock More Daily Rewrites</h3>
-      <button id="emailClose" class="btn icon" aria-label="Close">✕</button>
-    </div>
-    <div class="modal-body">
-      <p>You’ve hit today’s free limit. Enter your email to get extra daily rewrites.</p>
-      <input id="emailInput" type="email" placeholder="you@example.com" />
-      <small class="hint">We’ll send occasional updates. Unsubscribe anytime.</small>
-    </div>
-    <div class="modal-footer">
-      <button id="emailSubmit" class="btn primary">Continue</button>
-      <button id="emailCancel" class="btn ghost">Not now</button>
-    </div>
-  </div>
+  <footer class="footer">
+    <small>© <span id="year"></span> Resume Optimizer MVP</small>
+  </footer>
 
-  <script src="script.js" defer></script>
+  <script src="script.js"></script>
+  <script>
+    document.getElementById('year').textContent = new Date().getFullYear();
+  </script>
 </body>
 </html>
