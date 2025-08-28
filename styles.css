@@ -171,6 +171,37 @@ select{
 }
 ul{ margin:6px 0 0; padding-left: 18px; }
 
+/* --- Results grid: Analysis (2x), Top JD Terms, Missing Terms --- */
+.results-grid-3 {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: 2fr 1fr 1fr; /* Analysis is ~2x the width */
+  grid-auto-rows: auto;
+}
+
+/* Cards in results */
+.results-grid-3 .card {
+  background: var(--surface);
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius);
+  padding: var(--pad);
+}
+
+/* Make Suggested Actions span all columns (row 2 full width) */
+.results-grid-3 .full {
+  grid-column: 1 / -1;
+}
+
+/* Responsive: stack on smaller screens */
+@media (max-width: 900px) {
+  .results-grid-3 {
+    grid-template-columns: 1fr;
+  }
+  .results-grid-3 .full {
+    grid-column: auto;
+  }
+}
+
 /* Modal */
 .modal-backdrop{
   position:fixed; inset:0; background: rgba(0,0,0,.35); z-index: 30;
