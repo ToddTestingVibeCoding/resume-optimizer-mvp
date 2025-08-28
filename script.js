@@ -1,77 +1,44 @@
 // ================================
-// Resume Optimizer — script.js (Lessons 1–15)
+// Resume Optimizer — script.js
+// Production build (Lessons 6–15)
 // ================================
 
 // ---------- Config ----------
 const BASE_REWRITES_PER_DAY = 5;
-const EMAIL_BONUS_REWRITES = 5;          // becomes 10/day after email
+const EMAIL_BONUS_REWRITES = 5;      // total 10/day after email
 const AUTOSAVE_DEBOUNCE_MS = 400;
 
-// ---- LocalStorage keys
+// ---------- LocalStorage Keys ----------
 const LS_KEYS = {
-  resume: "ro.resume",
-  jd: "ro.jd",
-  savedAt: "ro.savedAt",
-  usedDate: "ro.usedDate",
-  usedCount: "ro.usedCount",
-  emailProvided: "ro.emailProvided",
-  emailAddress: "ro.emailAddress",
+  resume:   "ro.resume",
+  jd:       "ro.jd",
+  savedAt:  "ro.savedAt",
+  rewrites: "ro.rewritesUsed",
+  email:    "ro.email"               // presence unlocks bonus
 };
 
-// ---------- Utilities ----------
-function debounce(fn, wait = 300) {
+// ---------- Small helpers ----------
+const $ = (id) => document.getElementById(id);
+const on = (el, ev, fn) => el && el.addEventListener(ev, fn);
+
+function debounce(fn, delay) {
   let t;
   return (...args) => {
     clearTimeout(t);
-    t = setTimeout(() => fn(...args), wait);
+    t = setTimeout(() => fn(...args), delay);
   };
 }
 
-function withLoading(btn, labelWhileLoading, fn) {
-  return async function (...args) {
-    let originalHTML;
-    if (btn) {
-      btn.disabled = true;
-      originalHTML = btn.innerHTML;
-      btn.innerHTML = `<span class="spinner"></span>${labelWhileLoading}`;
-    }
-    try {
-      return await fn(...args);
-    } finally {
-      if (btn) {
-        btn.disabled = false;
-        btn.innerHTML = originalHTML;
-      }
-    }
-  };
-}
-
-function spinnerHTML(text = "Working…") {
-  return `<span class="spinner"></span>${text}`;
-}
-
-function friendlyError(err) {
-  try {
-    if (typeof err === "string") return err;
-    if (err?.message) {
-      // Try to unwrap JSON-ish server messages
-      const m = err.message;
-      if (m.includes("rate_limit")) return "We’re temporarily at capacity. Please try again shortly.";
-      if (m.includes("invalid_api_key")) return "Server auth error. Please try again later.";
-      if (m.includes("ECONN") || m.includes("NetworkError")) return "Network issue. Check your connection and retry.";
-      // Vercel function wrapper messages
-      if (/FUNCTION_INVOCATION_FAILED/i.test(m)) return "A server error occurred. Please try again.";
-      return m;
-    }
-  } catch (_) {}
-  return "Something went wrong. Please try again.";
+function cls(el, className, add = true) {
+  if (!el) return;
+  el.classList[add ? "add" : "remove"](className);
 }
 
 // ---------- Simple alert messaging ----------
 function showMessage(type, text) {
   // types: info | success | warn | error
-  let box = document.getElementById("messages");
-  if (!box) box = document.getElementById("summary"); // fallback
+  let box = $("messages");
+  if (!box) box = $("summary");
   if (!box) return;
 
   const div = document.createElement("div");
@@ -84,9 +51,50 @@ function showMessage(type, text) {
   }, 5000);
 }
 
-function clearMessages() {
-  const box = document.getElementById("messages");
-  if (box) box.innerHTML = "";
+// Human-friendly error mapper
+function friendlyError(err) {
+  try {
+    const msg = String(err?.message || err || "");
+    if (/rate limit/i.test(msg)) {
+      return "You’ve hit a temporary rate limit. Please try again in ~30 seconds.";
+    }
+    if (/invalid_api_key|api key/i.test(msg)) {
+      return "Server is missing a valid AI key. Ask the owner to set OPENAI_API_KEY in Vercel.";
+    }
+    if (/NetworkError|Failed to fetch/i.test(msg)) {
+      return "Network issue. Check your connection and try again.";
+    }
+    if (/No file uploaded/i.test(msg)) {
+      return "No file received. Pick a .docx, .pdf or .txt using the Upload button.";
+    }
+    return msg || "Something went wrong.";
+  } catch {
+    return "Something went wrong.";
+  }
+}
+
+// ---------- Spinner + loading wrapper ----------
+function spinnerHTML(text = "Working…") {
+  return `<span class="spinner" aria-hidden="true"></span>${text}`;
+}
+
+function withLoading(btn, labelWhileLoading, fn) {
+  return async function(...args) {
+    let originalHTML;
+    if (btn) {
+      btn.disabled = true;
+      originalHTML = btn.innerHTML;
+      btn.innerHTML = spinnerHTML(labelWhileLoading);
+    }
+    try {
+      return await fn(...args);
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = originalHTML;
+      }
+    }
+  };
 }
 
 // ---------- Character counters ----------
@@ -95,109 +103,94 @@ function updateCounterFrom(el, counterEl) {
   counterEl.textContent = `${(el.value || "").length} characters`;
 }
 function wireCounters() {
-  const resumeEl = document.getElementById("resume");
-  const jobDescEl = document.getElementById("jobDesc") || document.getElementById("jd");
-  const resumeCount = document.getElementById("resumeCount");
-  const jobDescCount = document.getElementById("jobDescCount");
+  const resumeEl = $("resume");
+  const jobDescEl = $("jobDesc") || $("jd");
+  const resumeCount = $("resumeCount");
+  const jobDescCount = $("jobDescCount");
 
   if (resumeEl && resumeCount) {
     updateCounterFrom(resumeEl, resumeCount);
-    resumeEl.addEventListener("input", () => updateCounterFrom(resumeEl, resumeCount));
+    on(resumeEl, "input", () => updateCounterFrom(resumeEl, resumeCount));
   }
   if (jobDescEl && jobDescCount) {
     updateCounterFrom(jobDescEl, jobDescCount);
-    jobDescEl.addEventListener("input", () => updateCounterFrom(jobDescEl, jobDescCount));
+    on(jobDescEl, "input", () => updateCounterFrom(jobDescEl, jobDescCount));
   }
 }
 
-// ---------- Usage limits (per day) ----------
-function getTodayKey() {
-  const d = new Date();
-  return d.toISOString().slice(0, 10); // YYYY-MM-DD
-}
-function getMaxPerDay() {
-  const bonus = localStorage.getItem(LS_KEYS.emailProvided) === "true" ? EMAIL_BONUS_REWRITES : 0;
-  return BASE_REWRITES_PER_DAY + bonus;
-}
+// ---------- Usage limits (daily) ----------
 function getRewritesUsed() {
-  const today = getTodayKey();
-  const usedDate = localStorage.getItem(LS_KEYS.usedDate);
-  if (usedDate !== today) return 0;
-  return parseInt(localStorage.getItem(LS_KEYS.usedCount) || "0", 10);
+  return parseInt(localStorage.getItem(LS_KEYS.rewrites) || "0", 10);
+}
+function setRewritesUsed(n) {
+  localStorage.setItem(LS_KEYS.rewrites, String(n));
 }
 function incrementRewrites() {
-  const today = getTodayKey();
-  const usedDate = localStorage.getItem(LS_KEYS.usedDate);
-  let count = getRewritesUsed();
-  if (usedDate !== today) count = 0;
-  count += 1;
-  localStorage.setItem(LS_KEYS.usedDate, today);
-  localStorage.setItem(LS_KEYS.usedCount, String(count));
+  setRewritesUsed(getRewritesUsed() + 1);
   updateUsageCounter();
 }
+function getDailyLimit() {
+  const hasEmail = !!localStorage.getItem(LS_KEYS.email);
+  return BASE_REWRITES_PER_DAY + (hasEmail ? EMAIL_BONUS_REWRITES : 0);
+}
 function updateUsageCounter() {
-  const el = document.getElementById("usageCounter");
-  if (el) el.textContent = `${getRewritesUsed()} / ${getMaxPerDay()} rewrites used today`;
+  const el = $("usageCounter");
+  if (el) el.textContent = `${getRewritesUsed()} / ${getDailyLimit()} rewrites used today`;
+}
+function resetUsageIfNewDay() {
+  // cheap “per day” reset keyed to date string
+  const k = "ro.usageDate";
+  const today = new Date().toDateString();
+  const last = localStorage.getItem(k);
+  if (last !== today) {
+    localStorage.setItem(k, today);
+    setRewritesUsed(0);
+  }
 }
 
-// ---------- Email gate (when limit exceeded) ----------
-function renderEmailModal() {
-  const wrap = document.createElement("div");
-  wrap.id = "email-modal";
-  wrap.innerHTML = `
-    <div class="modal-backdrop"></div>
-    <div class="modal">
-      <h3>Get 5 extra rewrites/day</h3>
-      <p>Enter your email to extend today’s limit from ${BASE_REWRITES_PER_DAY} to ${BASE_REWRITES_PER_DAY + EMAIL_BONUS_REWRITES}.</p>
-      <form id="emailForm" class="modal-form">
-        <input type="email" id="emailInput" placeholder="you@example.com" required />
-        <div class="modal-actions">
-          <button type="submit" class="ai-btn">Unlock</button>
-          <button type="button" id="emailCancel" class="secondary">Cancel</button>
-        </div>
-      </form>
-    </div>
-  `;
-  document.body.appendChild(wrap);
+// ---------- Email unlock (soft gate) ----------
+function openEmailModal() {
+  const modal = $("emailModal");
+  if (modal) cls(modal, "open", true);
+  else {
+    // graceful fallback: prompt
+    const email = window.prompt("Enter your email to unlock more daily rewrites:");
+    if (email && /\S+@\S+\.\S+/.test(email)) {
+      localStorage.setItem(LS_KEYS.email, email.trim());
+      showMessage("success", "Thanks! Daily limit increased.");
+      updateUsageCounter();
+    }
+  }
+}
+function closeEmailModal() {
+  const modal = $("emailModal");
+  if (modal) cls(modal, "open", false);
+}
+function wireEmailModal() {
+  const form = $("emailForm");
+  const input = $("emailInput");
+  const closeBtn = $("emailClose");
 
-  wrap.querySelector("#emailCancel")?.addEventListener("click", () => {
-    wrap.remove();
-  });
+  on(closeBtn, "click", (e) => { e.preventDefault(); closeEmailModal(); });
 
-  wrap.querySelector("#emailForm")?.addEventListener("submit", (e) => {
+  on(form, "submit", (e) => {
     e.preventDefault();
-    const input = wrap.querySelector("#emailInput");
-    const email = (input?.value || "").trim();
-    if (!email || !/^\S+@\S+\.\S+$/.test(email)) {
+    const val = (input?.value || "").trim();
+    if (!val || !/\S+@\S+\.\S+/.test(val)) {
       showMessage("warn", "Please enter a valid email.");
       return;
     }
-    localStorage.setItem(LS_KEYS.emailProvided, "true");
-    localStorage.setItem(LS_KEYS.emailAddress, email);
+    localStorage.setItem(LS_KEYS.email, val);
+    closeEmailModal();
     updateUsageCounter();
-    showMessage("success", "Thanks! Your daily limit is now 10.");
-    wrap.remove();
+    showMessage("success", "Email saved. You now have extra daily rewrites!");
   });
 }
 
-function ensureLimitOrPrompt() {
-  const used = getRewritesUsed();
-  if (used >= getMaxPerDay()) {
-    // If not yet provided, ask for email to unlock more
-    if (localStorage.getItem(LS_KEYS.emailProvided) !== "true") {
-      renderEmailModal();
-    } else {
-      showMessage("warn", "Daily limit reached. Please come back tomorrow.");
-    }
-    return false;
-  }
-  return true;
-}
-
-// ---------- Draft save/load helpers ----------
+// ---------- Draft save/load/clear ----------
 function saveDraft() {
-  const resumeEl = document.getElementById("resume");
-  const jdEl = document.getElementById("jobDesc") || document.getElementById("jd");
+  const resumeEl = $("resume");
+  const jdEl = $("jobDesc") || $("jd");
   if (!resumeEl || !jdEl) return;
 
   localStorage.setItem(LS_KEYS.resume, resumeEl.value || "");
@@ -205,10 +198,9 @@ function saveDraft() {
   localStorage.setItem(LS_KEYS.savedAt, new Date().toISOString());
   showMessage("success", "Draft saved.");
 }
-
 function loadDraft() {
-  const resumeEl = document.getElementById("resume");
-  const jdEl = document.getElementById("jobDesc") || document.getElementById("jd");
+  const resumeEl = $("resume");
+  const jdEl = $("jobDesc") || $("jd");
   if (!resumeEl || !jdEl) return;
 
   const resume = localStorage.getItem(LS_KEYS.resume) || "";
@@ -216,90 +208,77 @@ function loadDraft() {
   resumeEl.value = resume;
   jdEl.value = jd;
 
-  // Refresh counters
-  const resumeCount = document.getElementById("resumeCount");
-  const jobDescCount = document.getElementById("jobDescCount");
-  if (resumeCount) updateCounterFrom(resumeEl, resumeCount);
-  if (jobDescCount) updateCounterFrom(jdEl, jobDescCount);
+  // refresh counters
+  const rc = $("resumeCount");
+  const jc = $("jobDescCount");
+  if (rc) updateCounterFrom(resumeEl, rc);
+  if (jc) updateCounterFrom(jdEl, jc);
 
+  const when = localStorage.getItem(LS_KEYS.savedAt);
   if (resume || jd) {
-    const when = localStorage.getItem(LS_KEYS.savedAt);
     showMessage("info", when ? `Draft loaded (saved ${new Date(when).toLocaleString()}).` : "Draft loaded.");
   } else {
     showMessage("warn", "No saved draft found.");
   }
 }
-
-function clearDraft() {
+function clearDraftOnly() {
   localStorage.removeItem(LS_KEYS.resume);
   localStorage.removeItem(LS_KEYS.jd);
   localStorage.removeItem(LS_KEYS.savedAt);
 }
 
-// ---- Draft presence + timestamp helpers (Lesson 15 polished UX) ---
-function hasDraft() {
-  return !!(localStorage.getItem(LS_KEYS.resume) || localStorage.getItem(LS_KEYS.jd));
+// ---------- Tokenizing / keyword stats ----------
+const STOPWORDS = new Set([
+  "the","and","or","to","a","of","in","for","on","with","is","are","as","at","by",
+  "an","be","this","that","from","it","you","your","we","our","their","they",
+  "will","can","ability","responsible","responsibilities","experience","years"
+]);
+
+function tokenize(text) {
+  return (text || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9\s\-+.#]/g, " ")
+    .split(/\s+/)
+    .filter(Boolean);
 }
-function lastSavedAtText() {
-  const when = localStorage.getItem(LS_KEYS.savedAt);
-  return when ? new Date(when).toLocaleString() : null;
-}
-
-// ---- Inject "Restore draft?" banner if appropriate
-function maybeOfferDraftRestore() {
-  const resumeEl = document.getElementById("resume");
-  const jdEl = document.getElementById("jobDesc") || document.getElementById("jd");
-  if (!resumeEl || !jdEl) return;
-
-  // Show only if a draft exists AND both fields are empty
-  const draftExists = hasDraft();
-  const bothEmpty = !(resumeEl.value?.trim()) && !(jdEl.value?.trim());
-  if (!draftExists || !bothEmpty) return;
-
-  const messages = document.getElementById("messages") || document.body;
-  const wrap = document.createElement("div");
-  wrap.className = "alert info";
-  const ts = lastSavedAtText();
-  wrap.innerHTML = `
-    <strong>Restore draft?</strong>
-    ${ts ? `<span style="opacity:.85">Saved ${ts}.</span>` : ""}
-    <div style="margin-top:8px; display:flex; gap:8px; flex-wrap:wrap;">
-      <button id="draftRestoreBtn" class="secondary">Load saved draft</button>
-      <button id="draftDismissBtn" class="secondary">Dismiss</button>
-    </div>
-  `;
-  messages.prepend(wrap);
-
-  wrap.querySelector("#draftRestoreBtn")?.addEventListener("click", () => {
-    loadDraft();
-    wrap.remove();
-  });
-  wrap.querySelector("#draftDismissBtn")?.addEventListener("click", () => {
-    wrap.remove();
-  });
-}
-
-// ---- Unsaved changes warning
-(function warnOnUnsavedChanges() {
-  const resumeEl = document.getElementById("resume");
-  const jdEl = document.getElementById("jobDesc") || document.getElementById("jd");
-  if (!resumeEl || !jdEl) return;
-
-  function isDirty() {
-    const savedResume = localStorage.getItem(LS_KEYS.resume) || "";
-    const savedJd = localStorage.getItem(LS_KEYS.jd) || "";
-    return (resumeEl.value || "") !== savedResume || (jdEl.value || "") !== savedJd;
+function keywordCounts(text) {
+  const counts = new Map();
+  for (const tok of tokenize(text)) {
+    if (STOPWORDS.has(tok)) continue;
+    if (tok.length < 3) continue;
+    counts.set(tok, (counts.get(tok) || 0) + 1);
   }
+  return counts;
+}
+function topTerms(counts, limit = 20) {
+  return [...counts.entries()]
+    .sort((a,b) => b[1]-a[1])
+    .slice(0, limit)
+    .map(([term,count]) => ({ term, count }));
+}
+function missingTerms(jdTop, resumeCounts) {
+  const missing = [];
+  for (const {term, count} of jdTop) {
+    if (!resumeCounts.has(term)) missing.push({ term, jdCount: count });
+  }
+  return missing;
+}
+function roughSuggestions(missing) {
+  return missing.slice(0, 10).map(({term}) =>
+    `Add a bullet using “${term}” in context (quantify impact, tool, scope).`
+  );
+}
+function renderList(el, items, formatter = (x)=>x) {
+  if (!el) return;
+  el.innerHTML = "";
+  for (const item of items) {
+    const li = document.createElement("li");
+    li.textContent = formatter(item);
+    el.appendChild(li);
+  }
+}
 
-  window.addEventListener("beforeunload", (e) => {
-    if (isDirty()) {
-      e.preventDefault();
-      e.returnValue = "";
-    }
-  });
-})();
-
-// ---------- API helpers ----------
+// ---------- Frontend ↔ API calls ----------
 async function callAnalyzeAPI(resume, jobDesc) {
   const r = await fetch("/api/analyze", {
     method: "POST",
@@ -307,290 +286,294 @@ async function callAnalyzeAPI(resume, jobDesc) {
     body: JSON.stringify({ resume, jobDesc })
   });
   if (!r.ok) throw new Error(await r.text());
-  return r.json(); // { analysis: string }
+  return r.json(); // { analysis: "..." }
 }
 
-async function callRewriteAPI(resume, jobDesc, opts = {}) {
+async function callRewriteAPI(resume, jd, options = {}) {
   const r = await fetch("/api/rewrite", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      resume,
-      jd: jobDesc,
-      tone: (opts.tone || "").toLowerCase(),
-      seniority: (opts.seniority || "").toLowerCase(),
-      role: (opts.role || "").toLowerCase(),
-    })
+    body: JSON.stringify({ resume, jd, options })
   });
   if (!r.ok) throw new Error(await r.text());
-  const data = await r.json(); // { bullets: string | string[] }
-  let bulletsText = "";
-  if (Array.isArray(data.bullets)) bulletsText = data.bullets.join("\n");
-  else bulletsText = data.bullets || "";
-  return bulletsText;
+  return r.json(); // { bullets: "..." }
 }
 
-// ---------- Analyze Alignment (server) ----------
-const analyzeBtn = document.getElementById("analyzeBtn");
-if (analyzeBtn) {
-  const handler = withLoading(analyzeBtn, "Analyzing…", async () => {
-    clearMessages();
-    const resume = (document.getElementById("resume")?.value || "").trim();
-    const jobDesc = (
-      document.getElementById("jobDesc")?.value ||
-      document.getElementById("jd")?.value ||
-      ""
-    ).trim();
-
-    if (!resume || !jobDesc) {
-      showMessage("warn", "Please paste both Resume and Job Description.");
-      return;
-    }
-
-    const summary = document.getElementById("summary");
-    if (summary) summary.innerHTML = spinnerHTML("Analyzing alignment…");
-
-    try {
-      const data = await callAnalyzeAPI(resume, jobDesc);
-      if (summary) {
-        summary.innerHTML = `
-          <div class="card">
-            <h3>Alignment Analysis</h3>
-            <p>${(data.analysis || "").replace(/\n/g, "<br>")}</p>
-          </div>
-        `;
-      }
-      showMessage("success", "Alignment analysis complete.");
-    } catch (err) {
-      if (summary) summary.innerHTML = "";
-      showMessage("error", friendlyError(err));
-    }
-  });
-
-  analyzeBtn.addEventListener("click", handler);
-}
-
-// ---------- Rewrite (server, with limits + email gate) ----------
-const rewriteBtn = document.getElementById("rewriteBtn");
-if (rewriteBtn) {
-  const handler = withLoading(rewriteBtn, "Rewriting…", async () => {
-    clearMessages();
-    if (!ensureLimitOrPrompt()) return;
-
-    const resume = (document.getElementById("resume")?.value || "").trim();
-    const jobDesc = (
-      document.getElementById("jobDesc")?.value ||
-      document.getElementById("jd")?.value ||
-      ""
-    ).trim();
-    if (!resume || !jobDesc) {
-      showMessage("warn", "Please paste both Resume and Job Description.");
-      return;
-    }
-
-    const tone = (document.getElementById("tone")?.value || "Professional");
-    const seniority = (document.getElementById("seniority")?.value || "Mid");
-    const role = (document.getElementById("role")?.value || "General");
-
-    const summary = document.getElementById("summary");
-    if (summary) summary.innerHTML = spinnerHTML("Rewriting with AI…");
-
-    try {
-      const bullets = await callRewriteAPI(resume, jobDesc, { tone, seniority, role });
-
-      // normalize to list items
-      const html = bullets
-        .split("\n")
-        .map((l) => l.trim())
-        .filter(Boolean)
-        .map((l) => l.replace(/^[-•*\d.)\s]+/, ""))
-        .map((l) => `<li>${l}</li>`)
-        .join("");
-
-      if (summary) {
-        summary.innerHTML = `
-          <div class="card">
-            <h3>AI Suggested Bullets</h3>
-            <ul>${html}</ul>
-          </div>
-        `;
-      }
-
-      incrementRewrites();
-      showMessage(
-        "success",
-        `AI rewrite complete. (${getRewritesUsed()}/${getMaxPerDay()} used today)`
-      );
-    } catch (err) {
-      if (summary) summary.innerHTML = "";
-      showMessage("error", friendlyError(err));
-    }
-  });
-
-  rewriteBtn.addEventListener("click", handler);
-}
-
-// ---------- Copy + Download ----------
+// ---------- Copy / Download helpers ----------
 function getCurrentBullets() {
-  const summary = document.getElementById("summary");
+  const summary = $("summary");
   const lis = summary ? summary.querySelectorAll("li") : [];
-  return Array.from(lis).map((li) => li.textContent.trim()).filter(Boolean);
+  return Array.from(lis).map(li => li.textContent.trim()).filter(Boolean);
 }
 
-// Copy
-const copyBtn = document.getElementById("copyBtn");
-if (copyBtn) {
-  copyBtn.addEventListener("click", async () => {
-    const bullets = getCurrentBullets();
-    if (!bullets.length) {
-      showMessage("warn", "No AI bullets to copy yet!");
-      return;
-    }
-    try {
-      await navigator.clipboard.writeText(bullets.join("\n"));
-      showMessage("success", "Copied AI bullets to your clipboard.");
-    } catch (err) {
-      showMessage("error", friendlyError(err));
-    }
-  });
-}
+// ---------- Wire up UI once DOM ready ----------
+document.addEventListener("DOMContentLoaded", () => {
+  resetUsageIfNewDay();
+  updateUsageCounter();
+  wireCounters();
+  wireEmailModal();
 
-// Download DOCX (server)
-const downloadBtn = document.getElementById("downloadBtn");
-if (downloadBtn) {
-  const handler = withLoading(downloadBtn, "Preparing DOCX…", async () => {
-    const bullets = getCurrentBullets();
-    if (!bullets.length) {
-      showMessage("warn", "No AI bullets to download yet!");
-      return;
-    }
+  // Elements
+  const resumeEl  = $("resume");
+  const jdEl      = $("jobDesc") || $("jd");
 
-    try {
-      const r = await fetch("/api/download-docx", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title: "AI Suggested Resume Bullets",
-          bullets
-        })
-      });
+  // ----- Upload resume (hidden input + button) -----
+  const uploadBtn = $("uploadBtn");
+  const resumeFileInput = $("resumeFile");
 
-      if (!r.ok) throw new Error(await r.text());
-      const blob = await r.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "ai_resume_bullets.docx";
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+  on(uploadBtn, "click", () => resumeFileInput && resumeFileInput.click());
 
-      showMessage("success", "Downloaded DOCX. Open it in Word/Pages.");
-    } catch (e) {
-      showMessage("error", friendlyError(e));
-    }
-  });
-
-  downloadBtn.addEventListener("click", handler);
-}
-
-// ---------- Resume file upload → /api/extract ----------
-const uploadBtn = document.getElementById("uploadBtn");
-const resumeFileInput = document.getElementById("resumeFile");
-
-if (uploadBtn && resumeFileInput) {
-  // open hidden file input
-  uploadBtn.addEventListener("click", () => resumeFileInput.click());
-
-  // send chosen file to backend
-  resumeFileInput.addEventListener("change", async () => {
-    const file = resumeFileInput.files?.[0];
+  on(resumeFileInput, "change", async () => {
+    const file = resumeFileInput?.files?.[0];
     if (!file) {
       showMessage("warn", "No file selected.");
       return;
     }
-
-    const formData = new FormData();
-    formData.append("file", file); // key MUST be "file"
-
-    // temporarily put uploadBtn into loading state
-    let originalHTML = uploadBtn.innerHTML;
-    uploadBtn.disabled = true;
-    uploadBtn.innerHTML = `<span class="spinner"></span>Uploading…`;
-
     try {
+      const formData = new FormData();
+      // Must be "file" — backend expects this name first.
+      formData.append("file", file);
       showMessage("info", "Extracting text from file…");
+
       const r = await fetch("/api/extract", { method: "POST", body: formData });
       if (!r.ok) throw new Error(await r.text());
       const data = await r.json();
 
-      const resumeEl = document.getElementById("resume");
       if (resumeEl) resumeEl.value = data.text || "";
-
-      const resumeCount = document.getElementById("resumeCount");
-      if (resumeEl && resumeCount) updateCounterFrom(resumeEl, resumeCount);
+      const rc = $("resumeCount");
+      if (rc) updateCounterFrom(resumeEl, rc);
 
       showMessage("success", "File text extracted and added to your resume.");
     } catch (err) {
       showMessage("error", friendlyError(err));
     } finally {
-      uploadBtn.disabled = false;
-      uploadBtn.innerHTML = originalHTML;
-      // allow re-selecting same file
-      resumeFileInput.value = "";
+      if (resumeFileInput) resumeFileInput.value = "";
     }
   });
-}
 
-// ---------- Clear ----------
-const clearBtn = document.getElementById("clearBtn");
-if (clearBtn) {
-  clearBtn.addEventListener("click", () => {
-    const ids = ["resume", "jobDesc", "jd", "summary"];
-    for (const id of ids) {
-      const el = document.getElementById(id);
-      if (!el) continue;
-      if (el.tagName === "TEXTAREA" || el.tagName === "INPUT") el.value = "";
-      else el.innerHTML = "";
-    }
-    clearDraft();
+  // ----- Analyze Alignment (API + local keyword lists) -----
+  const analyzeBtn = $("analyzeBtn");
+  if (analyzeBtn) {
+    const handler = withLoading(analyzeBtn, "Analyzing…", async () => {
+      const resume = (resumeEl?.value || "").trim();
+      const jobDesc = (jdEl?.value || "").trim();
+      if (!resume || !jobDesc) {
+        showMessage("warn", "Please paste both Resume and Job Description.");
+        return;
+      }
+      try {
+        // 1) Narrative from backend
+        const data = await callAnalyzeAPI(resume, jobDesc);
 
-    const resumeCount = document.getElementById("resumeCount");
-    if (resumeCount) resumeCount.textContent = "0 characters";
-    const jobDescCount = document.getElementById("jobDescCount");
-    if (jobDescCount) jobDescCount.textContent = "0 characters";
+        // 2) Render analysis
+        const summary = $("summary");
+        if (summary) {
+          summary.innerHTML = `
+            <div class="card">
+              <h3>Alignment Analysis</h3>
+              <p>${(data.analysis || "").replace(/\n/g, "<br>")}</p>
+            </div>
+          `;
+        }
 
-    showMessage("info", "Cleared. Paste your fresh text to continue.");
+        // 3) Local keyword side-panels
+        const resumeCounts = keywordCounts(resume);
+        const jdCounts = keywordCounts(jobDesc);
+        const jdTop = topTerms(jdCounts, 20);
+        const miss = missingTerms(jdTop, resumeCounts);
+        const sugg = roughSuggestions(miss);
+
+        renderList($("topJd"), jdTop, x => `${x.term} (${x.count})`);
+        renderList($("missing"), miss, x => x.term);
+        renderList($("suggestions"), sugg);
+
+        showMessage("success", "Alignment analysis complete.");
+      } catch (err) {
+        showMessage("error", friendlyError(err));
+      }
+    });
+    on(analyzeBtn, "click", handler);
+  }
+
+  // ----- Clear all content -----
+  const clearBtn = $("clearBtn");
+  if (clearBtn) {
+    on(clearBtn, "click", () => {
+      const ids = ["resume", "jobDesc", "jd", "summary", "topJd", "missing", "suggestions"];
+      for (const id of ids) {
+        const el = $(id);
+        if (!el) continue;
+        if (el.tagName === "TEXTAREA" || el.tagName === "INPUT") el.value = "";
+        else el.innerHTML = "";
+      }
+      // counters
+      const rc = $("resumeCount"); if (rc) rc.textContent = "0 characters";
+      const jc = $("jobDescCount"); if (jc) jc.textContent = "0 characters";
+
+      // clear draft content, not usage/email
+      clearDraftOnly();
+      showMessage("info", "Cleared. Paste fresh text to continue.");
+    });
+  }
+
+  // ----- Rewrite with AI (usage limits + controls) -----
+  const rewriteBtn = $("rewriteBtn");
+  if (rewriteBtn) {
+    const handler = withLoading(rewriteBtn, "Rewriting…", async () => {
+      const resume = (resumeEl?.value || "").trim();
+      const jd = (jdEl?.value || "").trim();
+      if (!resume || !jd) {
+        showMessage("warn", "Please paste both Resume and Job Description.");
+        return;
+      }
+
+      // limits
+      const used = getRewritesUsed();
+      const limit = getDailyLimit();
+      if (used >= limit) {
+        showMessage("warn", "Daily limit reached. Enter your email to unlock more.");
+        openEmailModal();
+        return;
+      }
+
+      // Lesson 7 controls (optional)
+      const tone = ($("tone")?.value || "Professional").toLowerCase();
+      const seniority = ($("seniority")?.value || "Mid").toLowerCase();
+      const role = ($("role")?.value || "General").toLowerCase();
+
+      const summary = $("summary");
+      if (summary) summary.innerHTML = `<div class="card">${spinnerHTML("Rewriting with AI…")}</div>`;
+
+      try {
+        const { bullets = "" } = await callRewriteAPI(resume, jd, { tone, seniority, role });
+
+        const html = bullets
+          .split("\n")
+          .map(l => l.trim())
+          .filter(Boolean)
+          .map(l => l.replace(/^[-•*\d.)\s]+/, "")) // strip any leading markers
+          .map(l => `<li>${l}</li>`)
+          .join("");
+
+        if (summary) {
+          summary.innerHTML = `
+            <div class="card">
+              <h3>AI Suggested Bullets</h3>
+              <ul>${html}</ul>
+            </div>
+          `;
+        }
+
+        incrementRewrites();
+        showMessage("success", `AI rewrite complete. (${getRewritesUsed()}/${getDailyLimit()} used today)`);
+      } catch (err) {
+        if (summary) summary.innerHTML = "";
+        showMessage("error", friendlyError(err));
+      }
+    });
+
+    on(rewriteBtn, "click", handler);
+  }
+
+  // ----- Save / Load / Clear draft buttons -----
+  on($("saveBtn"), "click", saveDraft);
+  on($("loadBtn"), "click", loadDraft);
+  on($("clearDraftBtn"), "click", () => {
+    clearDraftOnly();
+    showMessage("success", "Draft cleared.");
   });
-}
 
-// ---------- Optional Draft buttons (only if present in HTML) ----------
-const saveBtn = document.getElementById("saveBtn");
-if (saveBtn) saveBtn.addEventListener("click", saveDraft);
+  // ----- Autosave (resume + jobDesc) -----
+  if (resumeEl && jdEl) {
+    const debouncedSave = debounce(saveDraft, AUTOSAVE_DEBOUNCE_MS);
+    on(resumeEl, "input", debouncedSave);
+    on(jdEl, "input", debouncedSave);
+  }
 
-const loadBtn = document.getElementById("loadBtn");
-if (loadBtn) loadBtn.addEventListener("click", loadDraft);
+  // ----- Copy bullets -----
+  const copyBtn = $("copyBtn");
+  if (copyBtn) {
+    const handler = withLoading(copyBtn, "Copying…", async () => {
+      const bullets = getCurrentBullets();
+      if (!bullets.length) {
+        showMessage("warn", "No AI bullets to copy yet!");
+        return;
+      }
+      try {
+        await navigator.clipboard.writeText(bullets.join("\n"));
+        showMessage("success", "Copied AI bullets to clipboard.");
+      } catch (err) {
+        showMessage("error", "Copy failed: " + friendlyError(err));
+      }
+    });
+    on(copyBtn, "click", handler);
+  }
 
-const clearDraftBtn = document.getElementById("clearDraftBtn");
-if (clearDraftBtn) clearDraftBtn.addEventListener("click", () => {
-  clearDraft();
-  showMessage("success", "Draft cleared.");
-});
+  // ----- Download DOCX via backend -----
+  const downloadBtn = $("downloadBtn");
+  if (downloadBtn) {
+    const handler = withLoading(downloadBtn, "Preparing…", async () => {
+      const bullets = getCurrentBullets();
+      if (!bullets.length) {
+        showMessage("warn", "No AI bullets to download yet!");
+        return;
+      }
+      try {
+        const r = await fetch("/api/download-docx", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ title: "AI Suggested Resume Bullets", bullets })
+        });
+        if (!r.ok) throw new Error(await r.text());
 
-// ---------- Autosave wiring ----------
-(function wireAutosave() {
-  const resumeEl = document.getElementById("resume");
-  const jdEl = document.getElementById("jobDesc") || document.getElementById("jd");
-  if (!resumeEl || !jdEl) return;
-  const debounced = debounce(saveDraft, AUTOSAVE_DEBOUNCE_MS);
-  resumeEl.addEventListener("input", debounced);
-  jdEl.addEventListener("input", debounced);
-})();
+        const blob = await r.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "ai_resume_bullets.docx";
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
 
-// ---------- On load ----------
-document.addEventListener("DOMContentLoaded", () => {
-  wireCounters();
+        showMessage("success", "Downloaded DOCX. Open it in Word/Pages.");
+      } catch (err) {
+        showMessage("error", friendlyError(err));
+      }
+    });
+    on(downloadBtn, "click", handler);
+  }
+
+  // ----- Suggest loading saved draft once (polite banner) -----
+  try {
+    const hasSavedResume = !!localStorage.getItem(LS_KEYS.resume);
+    const hasSavedJd = !!localStorage.getItem(LS_KEYS.jd);
+    const bannerShownKey = "ro.bannerShown";
+    const alreadyShown = localStorage.getItem(bannerShownKey);
+
+    if ((hasSavedResume || hasSavedJd) && !alreadyShown) {
+      const banner = document.createElement("div");
+      banner.className = "alert info";
+      banner.innerHTML = `
+        Looks like you have a saved draft.
+        <button id="loadDraftNow" class="secondary" style="margin-left:10px;">Load now</button>
+        <button id="dismissDraftBanner" class="secondary" style="margin-left:6px;">Dismiss</button>
+      `;
+      const mount = $("messages") || document.body;
+      mount.prepend(banner);
+
+      on($("loadDraftNow"), "click", () => {
+        loadDraft();
+        localStorage.setItem(bannerShownKey, "1");
+        banner.remove();
+      });
+      on($("dismissDraftBanner"), "click", () => {
+        localStorage.setItem(bannerShownKey, "1");
+        banner.remove();
+      });
+    }
+  } catch { /* no-op */ }
+
+  // final counter render
   updateUsageCounter();
-  maybeOfferDraftRestore(); // polished restore flow
 });
