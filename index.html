@@ -5,73 +5,115 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Resume Optimizer (MVP)</title>
 
-  <!-- Fonts + Styles -->
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <!-- Font + Styles -->
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-
-  <!-- Centered site header -->
+  <!-- Page Header -->
   <header class="site-header">
-    <h1>Resume Optimizer</h1>
+    <h1 class="brand">Resume Optimizer</h1>
     <p class="tagline">Paste your resume + job description → get tailored, impact-focused bullets.</p>
   </header>
 
   <main class="container">
-    <!-- Alerts / inline messages -->
+    <!-- Live messages / alerts (JS writes here) -->
     <div id="messages" aria-live="polite"></div>
 
-    <!-- Editors -->
-    <section class="editor-grid">
-      <!-- Resume editor -->
-      <div class="editor">
-        <h2>Step 1 — Paste Your Resume</h2>
-        <label for="resume" class="sr-only">Resume</label>
-        <textarea id="resume" rows="16" placeholder="Paste your resume here…"></textarea>
-        <small class="char-count" id="resumeCount">0 characters</small>
+    <!-- Editor: Resume + Job Description -->
+    <section class="section">
+      <h2>Editor</h2>
 
-        <!-- Hidden file input + visible trigger -->
-        <input id="resumeFile" type="file" accept=".docx,.pdf,.txt" style="display:none" />
-        <button id="uploadBtn" type="button" class="secondary">Upload Resume File</button>
+      <div class="editor-grid">
+        <!-- Resume column -->
+        <div class="editor-col">
+          <label for="resume" class="sr-only">Resume</label>
+          <textarea id="resume" rows="18" placeholder="Paste your resume here…"></textarea>
+          <div class="row-between">
+            <small id="resumeCount" class="char-count">0 characters</small>
 
-        <p class="hint">Supported: .docx, .pdf, .txt</p>
-      </div>
+            <!-- Custom upload button + hidden input -->
+            <div class="file-actions">
+              <input id="resumeFile" type="file" accept=".docx,.pdf,.txt" hidden />
+              <button id="uploadBtn" type="button" class="secondary">Upload Resume File</button>
+            </div>
+          </div>
+        </div>
 
-      <!-- Job Description editor -->
-      <div class="editor">
-        <h2>Step 2 — Paste Job Description</h2>
-        <label for="jobDesc" class="sr-only">Job Description</label>
-        <textarea id="jobDesc" rows="16" placeholder="Paste the job description here…"></textarea>
-        <small class="char-count" id="jobDescCount">0 characters</small>
+        <!-- Job description column -->
+        <div class="editor-col">
+          <label for="jobDesc" class="sr-only">Job Description</label>
+          <textarea id="jobDesc" rows="18" placeholder="Paste the job description here…"></textarea>
+          <div class="row-between">
+            <small id="jobDescCount" class="char-count">0 characters</small>
+            <!-- reserved space for symmetry -->
+            <span></span>
+          </div>
+        </div>
       </div>
     </section>
 
-    <!-- Actions -->
-    <section class="actions-wrap">
-      <div class="actions">
-        <button id="analyzeBtn" class="secondary">Analyze Alignment</button>
-        <button id="clearBtn" class="secondary">Clear</button>
-        <button id="rewriteBtn" class="ai-btn">Rewrite for Alignment (AI)</button>
-        <div class="actions">
-  <!-- existing buttons... -->
-  <button id="saveDraftBtn" class="secondary" type="button">Save Draft</button>
-  <button id="loadDraftBtn" class="secondary" type="button">Load Draft</button>
-  <button id="clearDraftBtn" class="secondary" type="button">Clear Draft</button>
-</div>
-        <button id="copyBtn">Copy AI Bullets</button>
-        <button id="downloadBtn">Download as DOCX</button>
+    <!-- Controls -->
+    <section class="section">
+      <h2>Controls</h2>
+
+      <div class="controls-row">
+        <label>
+          Tone
+          <select id="tone">
+            <option>Professional</option>
+            <option>Friendly</option>
+            <option>Formal</option>
+            <option>Concise</option>
+          </select>
+        </label>
+
+        <label>
+          Seniority
+          <select id="seniority">
+            <option>Junior</option>
+            <option selected>Mid</option>
+            <option>Senior</option>
+            <option>Lead</option>
+          </select>
+        </label>
+
+        <label>
+          Role
+          <select id="role">
+            <option>Engineering</option>
+            <option>Product</option>
+            <option>Marketing</option>
+            <option>Sales</option>
+            <option>Operations</option>
+          </select>
+        </label>
       </div>
 
-      <!-- Daily usage counter -->
-      <p id="usageCounter" class="usage-counter" aria-live="polite">0 / 5 rewrites used today</p>
+      <div class="actions">
+        <button id="analyzeBtn" class="secondary">Analyze Alignment</button>
+        <button id="rewriteBtn" class="ai-btn">Rewrite for Alignment (AI)</button>
+        <button id="copyBtn">Copy AI Bullets</button>
+        <button id="downloadBtn">Download as DOCX</button>
+        <button id="clearBtn" class="secondary">Clear</button>
+
+        <!-- Draft controls (Lesson 15) -->
+        <button id="saveBtn" class="secondary">Save Draft</button>
+        <button id="loadBtn" class="secondary">Load Draft</button>
+        <button id="clearDraftBtn" class="secondary">Clear Draft</button>
+      </div>
+
+      <!-- Usage counter -->
+      <p id="usageCounter" class="usage-counter">0 / 5 rewrites used today</p>
     </section>
 
     <!-- Results -->
-    <section class="results">
+    <section class="section results">
       <h2>Results</h2>
+
       <div id="summary" class="card">
-        <!-- AI Suggested Bullets and analysis will render here -->
+        <!-- JS will render analysis or AI bullets here -->
       </div>
 
       <div class="grid-3">
@@ -80,7 +122,7 @@
           <ul id="topJd"></ul>
         </div>
         <div class="card">
-          <h3>Missing from Resume</h3>
+          <h3>Missing Terms</h3>
           <ul id="missing"></ul>
         </div>
         <div class="card">
@@ -89,29 +131,36 @@
         </div>
       </div>
     </section>
-
-    <p class="footer">Built as a learning MVP — iterate, test, and tailor to your experience.</p>
   </main>
 
-  <!-- Email unlock modal -->
-  <div id="emailModal" class="modal" aria-hidden="true" role="dialog" aria-labelledby="emailTitle" aria-describedby="emailDesc">
+  <!-- Email Gate Modal (Lesson 12 / limits unlock) -->
+  <div id="emailOverlay" class="modal-overlay" hidden></div>
+  <div id="emailModal" class="modal" hidden role="dialog" aria-modal="true" aria-labelledby="emailModalTitle">
     <div class="modal-content">
-      <button class="modal-close" id="emailClose" aria-label="Close">&times;</button>
-      <h3 id="emailTitle">Get more daily rewrites</h3>
-      <p id="emailDesc">You’ve reached today’s base limit. Enter your email to unlock extra rewrites.</p>
-      <form id="emailForm" novalidate>
-        <label for="emailInput" class="sr-only">Email address</label>
-        <input id="emailInput" type="email" placeholder="you@example.com" required />
-        <div id="emailError" class="form-error" role="alert" aria-live="polite"></div>
+      <h3 id="emailModalTitle">Unlock 10 rewrites/day</h3>
+      <p>Enter your email to get more daily AI rewrites and occasional tips.</p>
+      <form id="emailForm">
+        <input
+          id="emailInput"
+          type="email"
+          inputmode="email"
+          autocomplete="email"
+          placeholder="you@example.com"
+          required
+        />
         <div class="modal-actions">
-          <button type="button" class="secondary" id="emailCancel">Not now</button>
-          <button type="submit" class="ai-btn" id="emailSubmit">Unlock</button>
+          <button type="submit" class="ai-btn">Unlock</button>
+          <button type="button" id="emailCancel" class="secondary">Cancel</button>
         </div>
       </form>
     </div>
   </div>
 
-  <!-- App script -->
+  <footer class="footer">
+    <small>Built for learning & demo purposes. Always tailor content to your real experience.</small>
+  </footer>
+
   <script src="script.js" defer></script>
+  <noscript>Please enable JavaScript to use this app.</noscript>
 </body>
 </html>
