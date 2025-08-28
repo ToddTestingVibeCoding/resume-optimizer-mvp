@@ -5,35 +5,33 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Resume Optimizer (MVP)</title>
 
-  <!-- Font + Styles -->
+  <!-- Fonts + Styles -->
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <!-- Page Header -->
+  <!-- Header -->
   <header class="site-header">
     <h1 class="brand">Resume Optimizer</h1>
     <p class="tagline">Paste your resume + job description → get tailored, impact-focused bullets.</p>
   </header>
 
   <main class="container">
-    <!-- Live messages / alerts (JS writes here) -->
+    <!-- Messages / Alerts -->
     <div id="messages" aria-live="polite"></div>
 
-    <!-- Editor: Resume + Job Description -->
+    <!-- Editor -->
     <section class="section">
       <h2>Editor</h2>
 
       <div class="editor-grid">
-        <!-- Resume column -->
+        <!-- Resume -->
         <div class="editor-col">
           <label for="resume" class="sr-only">Resume</label>
           <textarea id="resume" rows="18" placeholder="Paste your resume here…"></textarea>
           <div class="row-between">
             <small id="resumeCount" class="char-count">0 characters</small>
-
-            <!-- Custom upload button + hidden input -->
             <div class="file-actions">
               <input id="resumeFile" type="file" accept=".docx,.pdf,.txt" hidden />
               <button id="uploadBtn" type="button" class="secondary">Upload Resume File</button>
@@ -41,13 +39,12 @@
           </div>
         </div>
 
-        <!-- Job description column -->
+        <!-- Job Description -->
         <div class="editor-col">
           <label for="jobDesc" class="sr-only">Job Description</label>
           <textarea id="jobDesc" rows="18" placeholder="Paste the job description here…"></textarea>
           <div class="row-between">
             <small id="jobDescCount" class="char-count">0 characters</small>
-            <!-- reserved space for symmetry -->
             <span></span>
           </div>
         </div>
@@ -91,20 +88,28 @@
         </label>
       </div>
 
-      <div class="actions">
-        <button id="analyzeBtn" class="secondary">Analyze Alignment</button>
-        <button id="rewriteBtn" class="ai-btn">Rewrite for Alignment (AI)</button>
-        <button id="copyBtn">Copy AI Bullets</button>
-        <button id="downloadBtn">Download as DOCX</button>
-        <button id="clearBtn" class="secondary">Clear</button>
+      <!-- Grouped Actions -->
+      <div class="actions-group">
+        <!-- Primary flow -->
+        <div class="actions-main" aria-label="Primary actions">
+          <button id="analyzeBtn" class="secondary">Analyze Alignment</button>
+          <button id="rewriteBtn" class="ai-btn">Rewrite for Alignment (AI)</button>
+          <button id="clearBtn" class="secondary">Clear</button>
+          <span class="actions-sep" role="presentation"></span>
+          <button id="copyBtn">Copy AI Bullets</button>
+          <button id="downloadBtn">Download as DOCX</button>
+        </div>
 
-        <!-- Draft controls (Lesson 15) -->
-        <button id="saveBtn" class="secondary">Save Draft</button>
-        <button id="loadBtn" class="secondary">Load Draft</button>
-        <button id="clearDraftBtn" class="secondary">Clear Draft</button>
+        <!-- Draft controls -->
+        <div class="actions-drafts" aria-label="Draft controls">
+          <span class="group-label">Draft</span>
+          <button id="saveBtn" class="secondary">Save Draft</button>
+          <button id="loadBtn" class="secondary">Load Draft</button>
+          <button id="clearDraftBtn" class="secondary">Clear Draft</button>
+        </div>
       </div>
 
-      <!-- Usage counter -->
+      <!-- Usage Counter -->
       <p id="usageCounter" class="usage-counter">0 / 5 rewrites used today</p>
     </section>
 
@@ -112,9 +117,7 @@
     <section class="section results">
       <h2>Results</h2>
 
-      <div id="summary" class="card">
-        <!-- JS will render analysis or AI bullets here -->
-      </div>
+      <div id="summary" class="card"><!-- JS renders here --></div>
 
       <div class="grid-3">
         <div class="card">
@@ -133,7 +136,7 @@
     </section>
   </main>
 
-  <!-- Email Gate Modal (Lesson 12 / limits unlock) -->
+  <!-- Email Gate Modal -->
   <div id="emailOverlay" class="modal-overlay" hidden></div>
   <div id="emailModal" class="modal" hidden role="dialog" aria-modal="true" aria-labelledby="emailModalTitle">
     <div class="modal-content">
