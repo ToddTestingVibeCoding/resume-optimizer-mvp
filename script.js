@@ -7,6 +7,12 @@
 const BASE_REWRITES_PER_DAY = 5;
 const EMAIL_BONUS_REWRITES = 5; // if user provides email, total becomes 10/day
 const AUTOSAVE_DEBOUNCE_MS = 400;
+// ---- Draft storage keys
+const LS_KEYS = {
+  resume: "ro.resume",
+  jd: "ro.jd",
+  savedAt: "ro.savedAt"
+};
 
 // ---------- Utilities ----------
 const STOPWORDS = new Set([
@@ -65,6 +71,59 @@ function debounce(fn, wait) {
     clearTimeout(t);
     t = setTimeout(() => fn(...args), wait);
   };
+}
+
+// ---- Debounce helper
+function debounce(fn, wait = 500) {
+  let t;
+  return (...args) => {
+    clearTimeout(t);
+    t = setTimeout(() => fn(...args), wait);
+  };
+}
+
+// ---- Draft save/load helpers
+function saveDraft() {
+  const resumeEl = document.getElementById("resume");
+  const jdEl = document.getElementById("jobDesc") || document.getElementById("jd");
+  if (!resumeEl || !jdEl) return;
+
+  localStorage.setItem(LS_KEYS.resume, resumeEl.value || "");
+  localStorage.setItem(LS_KEYS.jd, jdEl.value || "");
+  localStorage.setItem(LS_KEYS.savedAt, new Date().toISOString());
+  showMessage("success", "Draft saved.");
+}
+
+function loadDraft() {
+  const resumeEl = document.getElementById("resume");
+  const jdEl = document.getElementById("jobDesc") || document.getElementById("jd");
+  if (!resumeEl || !jdEl) return;
+
+  const resume = localStorage.getItem(LS_KEYS.resume) || "";
+  const jd = localStorage.getItem(LS_KEYS.jd) || "";
+  resumeEl.value = resume;
+  jdEl.value = jd;
+
+  // Update counters if you have them
+  if (typeof updateCounterFrom === "function") {
+    const resumeCount = document.getElementById("resumeCount");
+    const jobDescCount = document.getElementById("jobDescCount");
+    if (resumeCount) updateCounterFrom(resumeEl, resumeCount);
+    if (jobDescCount) updateCounterFrom(jdEl, jobDescCount);
+  }
+
+  if (resume || jd) {
+    const when = localStorage.getItem(LS_KEYS.savedAt);
+    showMessage("info", when ? `Draft loaded (saved ${new Date(when).toLocaleString()}).` : "Draft loaded.");
+  } else {
+    showMessage("warn", "No saved draft found.");
+  }
+}
+
+function clearDraft() {
+  localStorage.removeItem(LS_KEYS.resume);
+  localStorage.removeItem(LS_KEYS.jd);
+  localStorage.removeItem(LS_KEYS.savedAt);
 }
 
 // ---------- Messaging & UI helpers ----------
@@ -431,6 +490,28 @@ if (clearBtn) {
     if (jdCount) jdCount.textContent = "0 characters";
     showMessage("info", "Cleared. Paste your fresh text to continue.");
   });
+}
+
+// ---------- Draft save/load buttons ----------
+const saveBtn = document.getElementById("saveBtn");
+if (saveBtn) saveBtn.addEventListener("click", saveDraft);
+
+const loadBtn = document.getElementById("loadBtn");
+if (loadBtn) loadBtn.addEventListener("click", loadDraft);
+
+const clearDraftBtn = document.getElementById("clearDraftBtn");
+if (clearDraftBtn) clearDraftBtn.addEventListener("click", () => {
+  clearDraft();
+  showMessage("success", "Draft cleared.");
+});
+
+// ---------- Autosave wiring ----------
+const resumeEl = document.getElementById("resume");
+const jdEl = document.getElementById("jobDesc") || document.getElementById("jd");
+if (resumeEl && jdEl) {
+  const debouncedSave = debounce(saveDraft, AUTOSAVE_DEBOUNCE_MS);
+  resumeEl.addEventListener("input", debouncedSave);
+  jdEl.addEventListener("input", debouncedSave);
 }
 
 // ---------- Wire autosave on inputs ----------
