@@ -5,33 +5,70 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Resume Optimizer (MVP)</title>
 
-  <!-- Fonts + CSS -->
+  <!-- Fonts (Inter pairs well with our styles) -->
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet" />
+
+  <!-- App styles -->
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <!-- Site Header -->
+  <!-- Simple header (centered by CSS) -->
   <header class="site-header">
     <h1>Resume Optimizer</h1>
     <p class="tagline">Paste your resume + job description → get tailored, impact-focused bullets.</p>
   </header>
 
   <main class="container">
-
-    <!-- Global messages / alerts -->
+    <!-- Messaging area (alerts appear here) -->
     <div id="messages" aria-live="polite"></div>
 
-    <!-- Controls row (tone/seniority/role + demo fill) -->
-    <section class="card controls">
-      <div class="row">
+    <!-- Editor: Resume + JD -->
+    <section class="editor">
+      <h2>Step 1 — Paste Your Materials</h2>
+
+      <div class="editor-grid">
+        <!-- Resume -->
+        <div class="editor-card">
+          <div class="card-header">
+            <h3>Resume</h3>
+            <small class="char-count" id="resumeCount">0 characters</small>
+          </div>
+          <label for="resume" class="sr-only">Resume</label>
+          <textarea id="resume" rows="16" placeholder="Paste your resume here…"></textarea>
+
+          <!-- Hidden file input + visible button -->
+          <input id="resumeFile" type="file" accept=".docx,.pdf,.txt" style="display:none" />
+          <div class="actions compact">
+            <button id="uploadBtn" type="button" class="secondary">Upload Resume File</button>
+          </div>
+        </div>
+
+        <!-- Job Description -->
+        <div class="editor-card">
+          <div class="card-header">
+            <h3>Job Description</h3>
+            <small class="char-count" id="jobDescCount">0 characters</small>
+          </div>
+          <label for="jobDesc" class="sr-only">Job Description</label>
+          <textarea id="jobDesc" rows="16" placeholder="Paste the job description here…"></textarea>
+        </div>
+      </div>
+    </section>
+
+    <!-- Controls -->
+    <section class="controls">
+      <h2>Step 2 — Tune & Generate</h2>
+
+      <!-- Tone / Seniority / Role (Lesson 7) -->
+      <div class="control-row">
         <div class="control">
           <label for="tone">Tone</label>
           <select id="tone">
             <option>Professional</option>
             <option>Confident</option>
             <option>Concise</option>
-            <option>Leadership</option>
+            <option>Impactful</option>
           </select>
         </div>
         <div class="control">
@@ -50,133 +87,77 @@
             <option>Product</option>
             <option>Design</option>
             <option>Marketing</option>
-            <option>Sales</option>
             <option>Operations</option>
+            <option>Sales</option>
           </select>
         </div>
-
-        <div class="control">
-          <label class="sr-only" for="demoFillBtn">One-Click Demo</label>
-          <button id="demoFillBtn" type="button" class="secondary">One-Click Demo</button>
-        </div>
-      </div>
-    </section>
-
-    <!-- Editor grid: Resume + Job Description -->
-    <section class="editor-grid">
-      <!-- Resume column -->
-      <div class="card">
-        <h2>Step 1 — Paste Your Resume</h2>
-        <label for="resume" class="sr-only">Resume</label>
-        <textarea id="resume" rows="16" placeholder="Paste your resume here…"></textarea>
-        <div class="row-meta">
-          <small class="char-count" id="resumeCount">0 characters</small>
-        </div>
-
-        <!-- Hidden file input + visible trigger -->
-        <input id="resumeFile" type="file" accept=".docx,.pdf,.txt" style="display:none" />
-        <div class="actions">
-          <button id="uploadBtn" type="button" class="secondary">Upload Resume File</button>
-        </div>
       </div>
 
-      <!-- JD column -->
-      <div class="card">
-        <h2>Step 2 — Paste Job Description</h2>
-        <label for="jobDesc" class="sr-only">Job Description</label>
-        <textarea id="jobDesc" rows="16" placeholder="Paste the job description here…"></textarea>
-        <div class="row-meta">
-          <small class="char-count" id="jobDescCount">0 characters</small>
-        </div>
-      </div>
-    </section>
-
-    <!-- Primary actions -->
-    <section class="card">
+      <!-- Primary actions (order per your preference) -->
       <div class="actions">
-        <!-- Order per your preference: Rewrite first -->
         <button id="rewriteBtn" class="ai-btn">Rewrite for Alignment (AI)</button>
         <button id="analyzeBtn" class="secondary">Analyze Alignment</button>
         <button id="clearBtn" class="secondary">Clear</button>
 
-        <!-- Utilities -->
-        <button id="copyBtn">Copy AI Bullets</button>
-        <button id="downloadBtn">Download as DOCX</button>
+        <button id="saveBtn" class="ghost">Save Draft</button>
+        <button id="loadBtn" class="ghost">Load Draft</button>
+        <button id="clearDraftBtn" class="ghost">Clear Draft</button>
 
-        <!-- Usage counter -->
-        <span id="usageCounter" class="usage-counter">0 / 5 rewrites used today</span>
+        <button id="copyBtn">Copy AI Bullets</button>
+        <button id="downloadBtn">Download Bullets (DOCX)</button>
+
+        <button id="buildDraftBtn" class="ai-btn">Build Draft from Bullets</button>
+        <button id="downloadDraftBtn">Download Draft (DOCX)</button>
       </div>
+
+      <!-- Daily usage counter (Lesson 8) -->
+      <p id="usageCounter" class="usage-counter">0 / 5 rewrites used today</p>
     </section>
 
     <!-- Results -->
     <section class="results" id="results">
-  <h2>Results</h2>
+      <h2>Results</h2>
 
-  <!-- Alignment summary (coverage + notes) -->
-  <div id="summary" class="card"></div>
+      <!-- Alignment summary (coverage + notes, or AI bullets) -->
+      <div id="summary" class="card"></div>
 
-  <!-- Three-panels: Top JD Terms, Missing Terms, and full-width Suggested Actions -->
-  <div class="results-grid">
-    <div class="card">
-      <div class="card-header"><h3>Top JD Terms</h3></div>
-      <ul id="topJd"></ul>
-    </div>
+      <!-- Grid with Top JD Terms, Missing Terms, Suggested Actions -->
+      <div class="results-grid">
+        <div class="card">
+          <div class="card-header"><h3>Top JD Terms</h3></div>
+          <ul id="topJd"></ul>
+        </div>
 
-    <div class="card">
-      <div class="card-header"><h3>Missing Terms</h3></div>
-      <ul id="missing"></ul>
-    </div>
+        <div class="card">
+          <div class="card-header"><h3>Missing Terms</h3></div>
+          <ul id="missing"></ul>
+        </div>
 
-    <div class="card span-2">
-      <div class="card-header"><h3>Suggested Actions</h3></div>
-      <ul id="suggestions"></ul>
-    </div>
-  </div>
-</section>
-
-    <!-- Draft Resume (Lesson 17) -->
-    <section class="card results" id="draftSection">
-      <h2>Draft Resume (beta)</h2>
-
-      <div class="actions">
-        <button id="buildDraftBtn" class="ai-btn">Build Draft from Bullets</button>
-        <button id="downloadDraftBtn">Download Draft as .txt</button>
-      </div>
-
-      <label for="draftResume" class="sr-only">Draft resume</label>
-      <textarea id="draftResume" rows="16" placeholder="Your draft resume will appear here…"></textarea>
-      <div class="row-meta">
-        <small id="draftCount" class="char-count">0 characters</small>
+        <div class="card span-2">
+          <div class="card-header"><h3>Suggested Actions</h3></div>
+          <ul id="suggestions"></ul>
+        </div>
       </div>
     </section>
 
-    <!-- Draft save/load (Lesson 15) -->
-    <section class="card">
-      <h2>Draft Controls</h2>
-      <div class="actions">
-        <button id="saveBtn" class="secondary">Save Draft</button>
-        <button id="loadBtn" class="secondary">Load Draft</button>
-        <button id="clearDraftBtn" class="secondary">Clear Draft</button>
-      </div>
+    <!-- Draft resume editor (Lesson 17) -->
+    <section class="draft">
+      <h2>Draft Resume (Beta)</h2>
+      <p class="subtle">This draft is assembled from your AI bullets and context. Edit as needed before downloading.</p>
+      <label for="draftResume" class="sr-only">Draft Resume</label>
+      <textarea id="draftResume" rows="18" placeholder="Build a draft from bullets, then refine here…"></textarea>
     </section>
 
-    <p class="footer">Built for you with ✨</p>
+    <footer class="footer">
+      <p class="muted">© <span id="year"></span> Resume Optimizer MVP</p>
+    </footer>
   </main>
 
-  <!-- Email capture modal (Lesson 12) -->
-  <div id="emailModal" class="modal" aria-hidden="true" style="display:none">
-    <div class="modal-content">
-      <h3>Get more rewrites</h3>
-      <p>Enter your email to unlock 5 extra rewrites today:</p>
-      <input id="emailInput" type="email" placeholder="you@example.com" />
-      <div class="modal-actions">
-        <button id="emailSubmit" class="ai-btn">Unlock</button>
-        <button id="emailCancel" class="secondary">Not now</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Scripts -->
+  <!-- App script -->
   <script src="script.js"></script>
+  <script>
+    // tiny footer year helper
+    document.getElementById('year').textContent = new Date().getFullYear();
+  </script>
 </body>
 </html>
