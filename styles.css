@@ -204,3 +204,15 @@ textarea:focus{ border-color:#2f81f7; box-shadow:0 0 0 3px rgba(59,130,246,.2) }
 
 /* Footer */
 .footer{ color:var(--muted); text-align:center; padding:26px 0 40px }
+
+/* --- Draft Resume (beta) --- */
+.draft-area textarea {
+  width: 100%;
+  min-height: 340px;
+  resize: vertical;
+}
+.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  font-size: 14px;
+  line-height: 1.5;
+}
