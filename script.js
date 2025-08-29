@@ -434,6 +434,43 @@ document.addEventListener("DOMContentLoaded", () => {
   if(emailSubmitBtn) emailSubmitBtn.addEventListener("click", ()=>{ if(captureEmail()){ const rb=document.getElementById("rewriteBtn"); rb?.click(); } });
   if(emailCancelBtn) emailCancelBtn.addEventListener("click", hideEmailModal);
 
+  // ---------- Draft builder helpers ----------
+function buildDraftResume(resumeText, jdText, bullets) {
+  const nameLine = "NAME LASTNAME • City, ST • email@example.com • (555) 555-5555 • linkedin.com/in/you";
+  const titleLine = "TARGET ROLE — Tailored for the provided job description";
+  const summary = [
+    "SUMMARY",
+    "Impact-driven professional. Highlights aligned to role requirements:",
+    ...bullets.map(b => `• ${b}`)
+  ].join("\n");
+
+  const keywords = (() => {
+    // quick skim of JD terms, reuse what you already count if available
+    const top7 = [];
+    const jdCounts = (typeof keywordCounts === "function") ? keywordCounts(jdText) : new Map();
+    const top = (typeof topTerms === "function") ? topTerms(jdCounts, 7) : [];
+    for (const t of top) top7.push(t.term);
+    return top7.length ? `KEYWORDS: ${top7.join(", ")}` : "";
+  })();
+
+  return [
+    nameLine,
+    titleLine,
+    "",
+    summary,
+    "",
+    "EXPERIENCE",
+    "Company • Role • Dates",
+    "• Result-first bullet (you can replace these with AI bullets above)",
+    "• Quantify impact where possible (%, $, time saved)",
+    "",
+    "EDUCATION",
+    "School • Degree • Year",
+    "",
+    keywords
+  ].join("\n");
+}
+  
   // Copy bullets
   const copyBtn = document.getElementById("copyBtn");
   if (copyBtn){
@@ -471,6 +508,69 @@ document.addEventListener("DOMContentLoaded", () => {
     });
     downloadBtn.addEventListener("click", handler);
   }
+
+  // ---------- Draft Resume (beta) actions ----------
+const buildDraftBtn = document.getElementById("buildDraftBtn");
+const downloadDraftBtn = document.getElementById("downloadDraftBtn");
+
+if (buildDraftBtn) {
+  buildDraftBtn.addEventListener("click", () => {
+    const resumeEl = document.getElementById("resume");
+    const jdEl = document.getElementById("jobDesc") || document.getElementById("jd");
+    const draftEl = document.getElementById("draftResume");
+
+    const resume = (resumeEl?.value || "").trim();
+    const jd = (jdEl?.value || "").trim();
+    const bullets = getCurrentBullets();
+
+    if (!bullets.length) {
+      showMessage("warn", "No AI bullets found. Click “Rewrite for Alignment (AI)” first.");
+      return;
+    }
+
+    const draft = buildDraftResume(resume, jd, bullets);
+    if (draftEl) {
+      draftEl.value = draft;
+      showMessage("success", "Draft built from your AI bullets. Edit freely before downloading.");
+    }
+  });
+}
+
+if (downloadDraftBtn) {
+  downloadDraftBtn.addEventListener("click", async () => {
+    const draftEl = document.getElementById("draftResume");
+    const text = (draftEl?.value || "").trim();
+    if (!text) {
+      showMessage("warn", "No draft content to download yet. Click “Build Draft from Bullets” first.");
+      return;
+    }
+
+    try {
+      // We’ll send raw text to a lightweight endpoint that builds paragraphs.
+      const r = await fetch("/api/download-text", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: "Tailored Resume Draft",
+          text
+        })
+      });
+      if (!r.ok) throw new Error(await r.text());
+      const blob = await r.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "resume_draft.docx";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      showMessage("success", "Draft DOCX downloaded.");
+    } catch (err) {
+      showMessage("error", friendlyError(err));
+    }
+  });
+}
 
   // Upload → /api/extract
   const uploadBtn = document.getElementById("uploadBtn");
