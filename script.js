@@ -230,6 +230,26 @@ function clearDraft() {
   localStorage.removeItem(LS_KEYS.savedAt);
 }
 
+// ---------- Draft save/load buttons (optional) ----------
+(() => {
+  const saveBtn = document.getElementById("saveBtn");
+  if (saveBtn) saveBtn.addEventListener("click", () => {
+    saveDraft();
+    showMessage("success", "Draft saved.");
+  });
+
+  const loadBtn = document.getElementById("loadBtn");
+  if (loadBtn) loadBtn.addEventListener("click", () => {
+    loadDraft();
+  });
+
+  const clearDraftBtn = document.getElementById("clearDraftBtn");
+  if (clearDraftBtn) clearDraftBtn.addEventListener("click", () => {
+    clearDraft();
+    showMessage("success", "Draft cleared.");
+  });
+})();
+
 function insertDraftBanner() {
   const host = document.getElementById("messages") || document.querySelector("main.container") || document.body;
   const banner = document.createElement("div");
@@ -597,10 +617,10 @@ function buildDraftResume(resume, jd, bullets) {
   }
 })();
 
-// ---------- Init calls (must be near very bottom) ----------
-if (typeof wireCounters === "function") wireCounters();
-wireAutosave();
-loadDraftOnInit();
-// small delayed save so savedAt exists even for new sessions
-setTimeout(() => { try { saveDraft(); } catch {} }, 800);
-updateUsageCounter();
+// ---------- Init (run after DOM is ready) ----------
+document.addEventListener("DOMContentLoaded", () => {
+  try { wireCounters(); } catch {}
+  try { wireAutosave(); } catch {}
+  try { loadDraftOnInit(); } catch {}
+  try { updateUsageCounter(); } catch {}
+});
