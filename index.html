@@ -111,22 +111,27 @@
         </div>
       </div>
 
-      <!-- Primary actions (order per your preference) -->
-      <div class="actions">
-        <button id="rewriteBtn" class="ai-btn">Rewrite for Alignment (AI)</button>
-        <button id="analyzeBtn" class="secondary">Analyze Alignment</button>
-        <button id="clearBtn" class="secondary">Clear</button>
+<!-- Primary actions (order per your preference) -->
+<div class="actions">
+  <button id="rewriteBtn" class="ai-btn">Rewrite for Alignment (AI)</button>
+  <button id="analyzeBtn" class="secondary">Analyze Alignment</button>
+  <button id="clearBtn" class="secondary">Clear</button>
 
-        <button id="saveBtn" class="ghost">Save Draft</button>
-        <button id="loadBtn" class="ghost">Load Draft</button>
-        <button id="clearDraftBtn" class="ghost">Clear Draft</button>
+  <button id="saveBtn" class="ghost">Save Draft</button>
+  <button id="loadBtn" class="ghost">Load Draft</button>
+  <button id="clearDraftBtn" class="ghost">Clear Draft</button>
 
-        <button id="copyBtn">Copy AI Bullets</button>
-        <button id="downloadBtn">Download Bullets (DOCX)</button>
+  <button id="copyBtn">Copy AI Bullets</button>
+  <button id="downloadBtn">Download Bullets (DOCX)</button>
 
-        <button id="buildDraftBtn" class="ai-btn">Build Draft from Bullets</button>
-        <button id="downloadDraftBtn">Download Draft (DOCX)</button>
-      </div>
+  <button id="buildDraftBtn" class="ai-btn">Build Draft from Bullets</button>
+  <button id="downloadDraftBtn">Download Draft (DOCX)</button>
+
+  <!-- Session import/export -->
+  <button id="exportBtn" type="button" class="secondary">Export Session (.json)</button>
+  <input id="importFile" type="file" accept="application/json" style="display:none" />
+  <button id="importBtn" type="button" class="secondary">Import Session</button>
+</div>
 
       <!-- Daily usage counter (Lesson 8) -->
       <p id="usageCounter" class="usage-counter">0 / 5 rewrites used today</p>
