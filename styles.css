@@ -394,3 +394,40 @@ button.warn{
 }
 .load-draft-actions .primary { background:#0ea5e9; color:#fff; }
 .load-draft-actions .secondary { background:#f1f5f9; color:#0f172a; }
+
+/* === L19: JD term highlighting mirror === */
+.text-mirror-wrap {
+  position: relative;
+}
+.text-mirror {
+  position: absolute;
+  inset: 0;
+  padding: 12px;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  overflow: auto;
+  pointer-events: none;           /* let clicks go to the textarea */
+  border-radius: var(--radius, 14px);
+  font: inherit;
+  line-height: inherit;
+  color: transparent;             /* hide base text; we color spans only */
+}
+.text-mirror .hl-present { background: rgba(34,197,94,.25); border-radius: 4px; }
+.text-mirror .hl-missing { background: rgba(239,68,68,.18); border-radius: 4px; }
+
+/* Ensure textarea sits on top when not highlighting */
+.text-mirror-wrap textarea {
+  position: relative;
+  background: transparent;
+}
+
+/* Toggle label */
+.toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--muted, #666);
+  user-select: none;
+}
+.toggle input { transform: translateY(1px); }
