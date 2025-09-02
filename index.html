@@ -23,38 +23,41 @@
     <!-- Messaging area (alerts appear here) -->
     <div id="messages" aria-live="polite"></div>
 
-    <!-- Editor: Resume + JD -->
-    <section class="editor">
-      <h2>Step 1 — Paste Your Materials</h2>
+<!-- Editor: Resume + JD -->
+<section class="editor">
+  <h2>Step 1 — Paste Your Materials</h2>
 
-      <div class="editor-grid">
-        <!-- Resume -->
-        <div class="editor-card">
-          <div class="card-header">
-            <h3>Resume</h3>
-            <small class="char-count" id="resumeCount">0 characters</small>
-          </div>
-          <label for="resume" class="sr-only">Resume</label>
-          <textarea id="resume" rows="16" placeholder="Paste your resume here…"></textarea>
-
-          <!-- Hidden file input + visible button -->
-          <input id="resumeFile" type="file" accept=".docx,.pdf,.txt" style="display:none" />
-          <div class="actions compact">
-            <button id="uploadBtn" type="button" class="secondary">Upload Resume File</button>
-          </div>
-        </div>
-
-        <!-- Job Description -->
-        <div class="editor-card">
-          <div class="card-header">
-            <h3>Job Description</h3>
-            <small class="char-count" id="jobDescCount">0 characters</small>
-          </div>
-          <label for="jobDesc" class="sr-only">Job Description</label>
-          <textarea id="jobDesc" rows="16" placeholder="Paste the job description here…"></textarea>
-        </div>
+  <div class="editor-grid">
+    <!-- Resume -->
+    <div class="editor-card">
+      <div class="card-header">
+        <h3>Resume</h3>
+        <small class="char-count" id="resumeCount">0 characters</small>
       </div>
-    </section>
+      <label for="resume" class="sr-only">Resume</label>
+      <textarea id="resume" rows="16" placeholder="Paste your resume here…"></textarea>
+      <small class="save-status" id="resumeSaved">Not saved</small>
+
+      <!-- Hidden file input + visible button -->
+      <input id="resumeFile" type="file" accept=".docx,.pdf,.txt" style="display:none" />
+      <div class="actions compact">
+        <button id="uploadBtn" type="button" class="secondary">Upload Resume File</button>
+      </div>
+    </div> <!-- closes Resume card -->
+
+    <!-- Job Description -->
+    <div class="editor-card">
+      <div class="card-header">
+        <h3>Job Description</h3>
+        <small class="char-count" id="jobDescCount">0 characters</small>
+      </div>
+      <label for="jobDesc" class="sr-only">Job Description</label>
+      <textarea id="jobDesc" rows="16" placeholder="Paste the job description here…"></textarea>
+      <small class="save-status" id="jdSaved">Not saved</small>
+    </div> <!-- closes JD card -->
+
+  </div> <!-- closes editor-grid -->
+</section>
 
     <!-- Controls -->
     <section class="controls">
