@@ -28,15 +28,30 @@
   <h2>Step 1 — Paste Your Materials</h2>
 
   <div class="editor-grid">
-    <!-- Resume -->
-    <div class="editor-card">
-      <div class="card-header">
-        <h3>Resume</h3>
-        <small class="char-count" id="resumeCount">0 characters</small>
-      </div>
-      <label for="resume" class="sr-only">Resume</label>
-      <textarea id="resume" rows="16" placeholder="Paste your resume here…"></textarea>
-      <small class="save-status" id="resumeSaved">Not saved</small>
+<!-- Resume -->
+<div class="editor-card">
+  <div class="card-header">
+    <h3>Resume</h3>
+
+    <label class="toggle">
+      <input type="checkbox" id="highlightToggle" />
+      Highlight JD Terms
+    </label>
+
+    <small class="char-count" id="resumeCount">0 characters</small>
+  </div>
+
+  <label for="resume" class="sr-only">Resume</label>
+
+  <div class="text-mirror-wrap">
+    <!-- visible highlight overlay -->
+    <div id="resumeMirror" class="text-mirror" aria-hidden="true"></div>
+    <!-- the real textarea (we keep it as-is for editing) -->
+    <textarea id="resume" rows="16" placeholder="Paste your resume here…"></textarea>
+  </div>
+
+  <small class="save-status" id="resumeSaved">Not saved</small>
+</div>
 
       <!-- Hidden file input + visible button -->
       <input id="resumeFile" type="file" accept=".docx,.pdf,.txt" style="display:none" />
