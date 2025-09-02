@@ -361,3 +361,36 @@ button.warn{
 @media (hover: none){
   button:active{ transform:none; }
 }
+
+/* Lesson 18: subtle saved-at indicator + banner */
+.save-status {
+  display: inline-block;
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--muted-2, #667085);
+}
+
+.load-draft-banner {
+  background: #fff8e1;
+  border: 1px solid #f6d680;
+  color: #7a5800;
+  padding: 10px 12px;
+  border-radius: 10px;
+  margin-bottom: 16px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+}
+.load-draft-actions {
+  display: flex;
+  gap: 8px;
+}
+.load-draft-actions button {
+  border-radius: 8px;
+  padding: 6px 10px;
+  border: 0;
+  cursor: pointer;
+}
+.load-draft-actions .primary { background:#0ea5e9; color:#fff; }
+.load-draft-actions .secondary { background:#f1f5f9; color:#0f172a; }
