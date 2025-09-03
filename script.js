@@ -346,20 +346,82 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // ----- Analyze Alignment → #analysis (+ Top JD / Missing / Suggestions) -----
-(function wireAnalyze() {
-  // lightweight helper (uses your existing $ if present)
-  const $ = window.$ || ((id) => document.getElementById(id));
+// ----- Rewrite (AI) with limit gates -----
+const rewriteBtn = $("rewriteBtn");
+if (rewriteBtn) {
+  const handler = withLoading(rewriteBtn, "Rewriting…", async () => {
+    const resume = (resumeEl?.value || "").trim();
+    const jd =
+      (document.getElementById("jobDesc")?.value ||
+       document.getElementById("jd")?.value ||
+       "").trim();
+    const summary = $("aiBullets");
 
-  const analyzeBtn = $("analyzeBtn");
-  if (!analyzeBtn) return;
+    if (!resume || !jd) {
+      showMessage("warn", "Please paste both Resume and Job Description first.");
+      return;
+    }
 
+    // enforce daily usage limits
+    const used = getRewritesUsed();
+    if (used >= MAX_REWRITES_PER_DAY) {
+      showMessage("warn", "Daily limit reached. Please come back tomorrow or sign up to unlock more.");
+      return;
+    }
+
+    if (summary) summary.innerHTML = `<li>${spinnerHTML("Rewriting with AI…")}</li>`;
+
+    try {
+      const resp = await fetch("/api/rewrite", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ resume, jd })
+      });
+      if (!resp.ok) throw new Error(await resp.text());
+      const data = await resp.json();
+
+      let bullets = data.bullets;
+      if (Array.isArray(bullets)) {
+        // keep as array
+      } else if (typeof bullets === "string") {
+        bullets = bullets.split("\n");
+      } else {
+        bullets = [];
+      }
+
+      bullets = bullets
+        .map(l => (l || "").replace(/^[-•*\d.)\s]+/, "").trim())
+        .filter(Boolean);
+
+      if (!bullets.length) {
+        if (summary) summary.innerHTML = `<li>No bullets returned.</li>`;
+      } else {
+        if (summary) summary.innerHTML = bullets.map(l => `<li>${l}</li>`).join("");
+      }
+
+      incrementRewrites();
+      updateUsageCounter();
+      showMessage("success", `AI rewrite complete. (${getRewritesUsed()}/${MAX_REWRITES_PER_DAY} used today)`);
+    } catch (err) {
+      if (summary) summary.innerHTML = "";
+      showMessage("error", friendlyError(err));
+    }
+  });
+
+  rewriteBtn.addEventListener("click", handler);
+}
+
+// ----- Analyze Alignment → #analysis (+ side panels if returned) -----
+const analyzeBtn = $("analyzeBtn");
+if (analyzeBtn) {
   const handler = withLoading(analyzeBtn, "Analyzing…", async () => {
-    // read current inputs safely
-    const resume  = ($("#resume")?.value || "").trim();
-    const jobDesc = ($("#jobDesc")?.value || $("#jd")?.value || "").trim();
+    const resume = (resumeEl?.value || "").trim();
+    const jd =
+      (document.getElementById("jobDesc")?.value ||
+       document.getElementById("jd")?.value ||
+       "").trim();
 
-    if (!resume || !jobDesc) {
+    if (!resume || !jd) {
       showMessage("warn", "Please paste both Resume and Job Description.");
       return;
     }
@@ -371,7 +433,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const r = await fetch("/api/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ resume, jobDesc })
+        body: JSON.stringify({ resume, jobDesc: jd })
       });
       if (!r.ok) throw new Error(await r.text());
       const data = await r.json();
@@ -384,22 +446,23 @@ document.addEventListener("DOMContentLoaded", () => {
           : `<p>No analysis returned.</p>`;
       }
 
-      // helper: render arrays OR newline-strings into <ul>
-      const renderList = (ulId, value) => {
-        const ul = $(ulId);
-        if (!ul) return;
-        const items = Array.isArray(value)
-          ? value
-          : typeof value === "string"
-            ? value.split(/\r?\n/).map(s => s.trim())
-            : [];
-        ul.innerHTML =
-          items.filter(Boolean).map(s => `<li>${s}</li>`).join("") || "<li>—</li>";
-      };
+      // top JD terms
+      if (Array.isArray(data.topTerms)) {
+        const ul = $("topJd");
+        if (ul) ul.innerHTML = data.topTerms.map(t => `<li>${t}</li>`).join("");
+      }
 
-      renderList("topJd",       data.topTerms);
-      renderList("missing",     data.missingTerms);
-      renderList("suggestions", data.suggestions);
+      // missing terms
+      if (Array.isArray(data.missingTerms)) {
+        const ul = $("missing");
+        if (ul) ul.innerHTML = data.missingTerms.map(t => `<li>${t}</li>`).join("");
+      }
+
+      // suggestions
+      if (Array.isArray(data.suggestions)) {
+        const ul = $("suggestions");
+        if (ul) ul.innerHTML = data.suggestions.map(s => `<li>${s}</li>`).join("");
+      }
 
       showMessage("success", "Alignment analysis complete.");
     } catch (err) {
@@ -409,68 +472,7 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   analyzeBtn.addEventListener("click", handler);
-})();
-
-  // ----- Rewrite (AI) → #aiBullets with limit -----
-  {
-    const rewriteBtn = $("rewriteBtn");
-    if (rewriteBtn) {
-      const handler = withLoading(rewriteBtn, "Rewriting…", async () => {
-        const resume = (resumeEl?.value || "").trim();
-        const jd = (jdEl?.value || "").trim();
-        if (!resume || !jd) { showMessage("warn", "Please paste both Resume and Job Description first."); return; }
-
-        // limit
-        const used = getRewritesUsed();
-        if (used >= maxPerDay()) {
-          if (!hasEmail()) {
-            openEmailModal();
-            showMessage("warn", "Daily limit reached. Enter your email to unlock 5 more today.");
-          } else {
-            showMessage("warn", "Daily limit reached. Try again tomorrow.");
-          }
-          return;
-        }
-
-        const bulletsUl = $("aiBullets");
-        if (bulletsUl) bulletsUl.innerHTML = `<li>${spinnerHTML("Rewriting with AI…")}</li>`;
-
-        try {
-          const resp = await fetch("/api/rewrite", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ resume, jd })
-          });
-          if (!resp.ok) throw new Error(await resp.text());
-          const data = await resp.json();
-
-          let bullets = Array.isArray(data?.bullets)
-            ? data.bullets
-            : typeof data?.bullets === "string"
-              ? data.bullets.split("\n")
-              : [];
-
-          bullets = bullets
-            .map(l => l.replace(/^[-•*\d.)\s]+/, "").trim())
-            .filter(Boolean);
-
-          if (!bullets.length) {
-            if (bulletsUl) bulletsUl.innerHTML = `<li>No bullets returned.</li>`;
-          } else {
-            if (bulletsUl) bulletsUl.innerHTML = bullets.map(l => `<li>${l}</li>`).join("");
-          }
-
-          incrementRewrites();
-          updateUsageCounter();
-          showMessage("success", `AI rewrite complete. (${getRewritesUsed()}/${maxPerDay()} used today)`);
-        } catch (err) {
-          if (bulletsUl) bulletsUl.innerHTML = "";
-          showMessage("error", friendlyError(err));
-        }
-      });
-      rewriteBtn.addEventListener("click", handler);
-    }
-  }
+}
 
   // ----- Copy AI bullets -----
   {
