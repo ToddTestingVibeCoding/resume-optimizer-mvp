@@ -5,48 +5,69 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Resume Optimizer (MVP)</title>
   <link rel="stylesheet" href="styles.css" />
+  <!-- Font (Inter) -->
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
-  <!-- Top header -->
+
+  <!-- Site Header -->
   <header class="site-header">
     <h1>Resume Optimizer</h1>
     <p class="tagline">Paste your resume + job description → get tailored, impact-focused bullets.</p>
   </header>
 
   <main class="container">
-    <!-- Messages / Alerts -->
+
+    <!-- Alerts / Messages -->
     <div id="messages" aria-live="polite"></div>
 
-    <!-- Step 1: editors -->
+    <!-- Optional “load saved draft?” banner (script shows/hides) -->
+    <div id="loadBanner" class="banner" style="display:none">
+      <div class="banner-content">
+        <p>You have a saved draft from a previous session. Load it?</p>
+        <div class="banner-actions">
+          <button id="loadDraftNow" class="secondary">Load Draft</button>
+          <button id="dismissBanner" class="ghost">Dismiss</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 1 — Editors -->
     <section class="editor">
       <h2>Step 1 — Paste Your Materials</h2>
 
       <div class="editor-grid">
-        <!-- Resume -->
+        <!-- Resume card -->
         <div class="editor-card">
           <div class="card-header">
             <h3>Resume</h3>
+            <!-- (Optional) highlight toggle if your script supports it -->
+            <label class="toggle">
+              <input type="checkbox" id="highlightToggle" />
+              Highlight JD Terms
+            </label>
             <small class="char-count" id="resumeCount">0 characters</small>
           </div>
 
           <label for="resume" class="sr-only">Resume</label>
+
+          <!-- Overlay mirror (optional; script can ignore if unused) -->
           <div class="text-mirror-wrap">
-            <!-- (Optional highlight mirror used in earlier lessons; safe to keep) -->
             <div id="resumeMirror" class="text-mirror" aria-hidden="true"></div>
             <textarea id="resume" rows="16" placeholder="Paste your resume here…"></textarea>
           </div>
+
           <small class="save-status" id="resumeSaved">Not saved</small>
 
-          <!-- Hidden file input + visible button (REQUIRED for upload flow) -->
+          <!-- Hidden file input + visible Upload button -->
           <input id="resumeFile" type="file" accept=".docx,.pdf,.txt" style="display:none" />
           <div class="actions compact">
             <button id="uploadBtn" type="button" class="secondary">Upload Resume File</button>
           </div>
         </div>
 
-        <!-- Job Description -->
+        <!-- Job Description card -->
         <div class="editor-card">
           <div class="card-header">
             <h3>Job Description</h3>
@@ -60,102 +81,66 @@
       </div>
     </section>
 
-    <!-- Step 2: AI controls -->
-    <section class="controls">
-      <h2>Step 2 — Tune the Rewrite</h2>
-      <div class="control-row">
-        <label>
-          Tone
-          <select id="tone">
-            <option>Professional</option>
-            <option>Confident</option>
-            <option>Friendly</option>
-            <option>Executive</option>
-          </select>
-        </label>
-        <label>
-          Seniority
-          <select id="seniority">
-            <option>Mid</option>
-            <option>Junior</option>
-            <option>Senior</option>
-            <option>Lead</option>
-          </select>
-        </label>
-        <label>
-          Role
-          <select id="role">
-            <option>Engineering</option>
-            <option>Product</option>
-            <option>Design</option>
-            <option>Marketing</option>
-            <option>Sales</option>
-            <option>Operations</option>
-          </select>
-        </label>
-      </div>
-    </section>
-
-    <!-- Actions -->
+    <!-- Step 2 — Actions -->
     <section class="actions-wrap">
+      <h2>Step 2 — Analyze & Rewrite</h2>
+
       <div class="actions">
-        <!-- Primary flow -->
+        <!-- Primary -->
         <button id="rewriteBtn" class="ai-btn">Rewrite for Alignment (AI)</button>
         <button id="analyzeBtn" class="secondary">Analyze Alignment</button>
         <button id="clearBtn" class="secondary">Clear</button>
 
-        <!-- Draft Management -->
+        <!-- Draft save/load (manual) -->
         <button id="saveBtn" class="ghost">Save Draft</button>
         <button id="loadBtn" class="ghost">Load Draft</button>
         <button id="clearDraftBtn" class="ghost">Clear Draft</button>
 
-        <!-- Results utilities -->
+        <!-- Utilities -->
         <button id="copyBtn">Copy AI Bullets</button>
         <button id="downloadBtn">Download Bullets (DOCX)</button>
 
-        <!-- Draft resume builder -->
+        <!-- Draft resume builder (beta) -->
         <button id="buildDraftBtn" class="ai-btn">Build Draft from Bullets</button>
         <button id="downloadDraftBtn">Download Draft (DOCX)</button>
 
-        <!-- Session import/export -->
+        <!-- Import / Export session -->
         <button id="exportBtn" type="button" class="secondary">Export Session (.json)</button>
         <input id="importFile" type="file" accept="application/json" style="display:none" />
         <button id="importBtn" type="button" class="secondary">Import Session</button>
       </div>
 
-      <!-- Usage counter -->
+      <!-- Usage counter (AI daily limit display) -->
       <p id="usageCounter" class="usage-counter">0 / 5 rewrites used today</p>
     </section>
 
-    <!-- Results -->
+    <!-- Step 3 — Results -->
     <section class="results">
       <h2>Results</h2>
 
+      <!-- Top row: analysis + terms -->
       <div class="grid-3">
-        <!-- Alignment summary -->
-<div class="card">
-  <h3>Alignment Analysis</h3>
-  <div id="analysis"></div>
-</div>
+        <div class="card">
+          <h3>Alignment Analysis</h3>
+          <div id="analysis"></div>
+        </div>
 
-        <!-- Top JD Terms -->
         <div class="card">
           <h3>Top JD Terms</h3>
           <ul id="topJd"></ul>
         </div>
 
-        <!-- Missing Terms -->
         <div class="card">
           <h3>Missing Terms</h3>
           <ul id="missing"></ul>
         </div>
       </div>
 
-      <!-- AI Suggested Bullets -->
-<div class="card">
-  <h3>AI Suggested Bullets</h3>
-  <ul id="aiBullets"></ul>
-</div>
+      <!-- AI bullets -->
+      <div class="card">
+        <h3>AI Suggested Bullets</h3>
+        <ul id="aiBullets"></ul>
+      </div>
 
       <!-- Suggested Actions -->
       <div class="card">
@@ -164,35 +149,33 @@
       </div>
     </section>
 
-    <!-- Draft Resume (from bullets) -->
+    <!-- Step 4 — Draft Resume (beta) -->
     <section class="draft">
       <h2>Draft Resume (Beta)</h2>
-      <textarea id="draftResume" rows="14" placeholder="Click “Build Draft from Bullets” to generate a tailored draft here. Then edit freely before downloading."></textarea>
+      <div class="editor-card">
+        <div class="card-header">
+          <h3>Working Draft</h3>
+        </div>
+        <label for="draftResume" class="sr-only">Draft Resume</label>
+        <textarea id="draftResume" rows="18" placeholder="Click “Build Draft from Bullets” above, then edit freely…"></textarea>
+      </div>
     </section>
+
   </main>
 
-  <!-- Email capture modal (shown when daily limit reached) -->
-  <div id="emailModal" class="modal" aria-hidden="true">
-    <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="emailModalTitle">
-      <button class="modal-close" id="emailModalClose" aria-label="Close">×</button>
-      <h3 id="emailModalTitle">Get more daily rewrites</h3>
-      <p>Enter your email to unlock 5 more rewrites today (total 10/day).</p>
-      <form id="emailForm">
-        <input type="email" id="emailInput" placeholder="you@example.com" required />
-        <button type="submit" class="ai-btn">Unlock</button>
-      </form>
-      <small class="modal-hint">We’ll use this only to keep you updated about your resume session and product updates.</small>
+  <!-- Email unlock modal (for extra daily rewrites) -->
+  <div id="emailModal" class="modal" style="display:none">
+    <div class="modal-dialog">
+      <h3>Unlock 5 more rewrites today</h3>
+      <p>Enter your email to get extra daily credits and occasional product updates.</p>
+      <div class="modal-row">
+        <input id="emailInput" type="email" placeholder="you@example.com" />
+        <button id="emailSubmit" class="ai-btn" type="button">Unlock</button>
+      </div>
+      <button id="emailCancel" class="ghost" type="button">Not now</button>
     </div>
   </div>
 
-  <footer class="footer">
-    <p>© <span id="year"></span> Resume Optimizer. All rights reserved.</p>
-  </footer>
-
-  <script>
-    // keep footer year current
-    document.getElementById('year').textContent = new Date().getFullYear();
-  </script>
-  <script src="script.js"></script>
+  <script src="script.js" defer></script>
 </body>
 </html>
