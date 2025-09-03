@@ -1,90 +1,94 @@
-// api/analyze.js  (CommonJS, Vercel-friendly)
+// api/analyze.js
+// POST { resume, jobDesc } -> { analysis: "text..." }
 
-const STOPWORDS = new Set([
-  "the","and","or","to","a","of","in","for","on","with","is","are","as","at","by",
-  "an","be","this","that","from","it","you","your","we","our","their","they",
-  "will","can","ability","responsible","responsibilities","experience","years"
-]);
-
-function tokenize(text) {
-  return (text || "")
-    .toLowerCase()
-    .replace(/[^a-z0-9\s\-+.#]/g, " ")
-    .split(/\s+/)
-    .filter(Boolean);
-}
-
-function keywordCounts(text) {
-  const counts = new Map();
-  for (const tok of tokenize(text)) {
-    if (STOPWORDS.has(tok)) continue;
-    if (tok.length < 3) continue;
-    counts.set(tok, (counts.get(tok) || 0) + 1);
-  }
-  return counts;
-}
-
-function topTerms(counts, limit = 20) {
-  return [...counts.entries()]
-    .sort((a,b) => b[1]-a[1])
-    .slice(0, limit)
-    .map(([term,count]) => ({ term, count }));
-}
-
-function missingTerms(jdTop, resumeCounts) {
-  const missing = [];
-  for (const {term, count} of jdTop) {
-    if (!resumeCounts.has(term)) {
-      missing.push({ term, jdCount: count });
-    }
-  }
-  return missing;
-}
+const MODEL = "gpt-4o-mini";
 
 module.exports = async (req, res) => {
   try {
     if (req.method !== "POST") {
-      res.setHeader("Allow", "POST");
-      return res.status(405).json({ error: "Method not allowed" });
+      res.status(405).json({ error: "Method not allowed" });
+      return;
     }
 
-    // Vercel usually parses JSON when header is application/json,
-    // but be resilient if body arrives as a string.
-    let body = req.body;
-    if (typeof body === "string") {
-      try { body = JSON.parse(body); } catch (_) { body = {}; }
-    } else if (!body) {
-      body = {};
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey) {
+      res.status(500).json({ error: "Server misconfig: missing OPENAI_API_KEY" });
+      return;
     }
 
-    const resume = (body.resume || "").trim();
-    const jobDesc = (body.jobDesc || body.jd || "").trim();
+    // Read body
+    let raw = "";
+    await new Promise((resolve, reject) => {
+      req.on("data", (c) => (raw += c));
+      req.on("end", resolve);
+      req.on("error", reject);
+    });
+
+    /** @type {{resume?:string, jobDesc?:string}} */
+    let payload = {};
+    try {
+      payload = JSON.parse(raw || "{}");
+    } catch {
+      res.status(400).json({ error: "Invalid JSON" });
+      return;
+    }
+
+    const resume = (payload.resume || "").toString().trim();
+    const jobDesc = (payload.jobDesc || payload.jd || "").toString().trim();
 
     if (!resume || !jobDesc) {
-      return res.status(400).json({ error: "Missing resume or jobDesc" });
+      res.status(400).json({ error: "Please provide both resume and job description." });
+      return;
     }
 
-    const resumeCounts = keywordCounts(resume);
-    const jdCounts = keywordCounts(jobDesc);
-    const jdTop = topTerms(jdCounts, 20);
-    const miss = missingTerms(jdTop, resumeCounts);
-    const coverage = Math.round(((jdTop.length - miss.length) / Math.max(1, jdTop.length)) * 100);
+    const sys = [
+      "You are a meticulous resume analyst.",
+      "Compare resume vs. job description and summarize alignment in ~8–12 sentences.",
+      "Include: strengths, gaps, key keywords missing, seniority match, tone fit, and 3 concrete improvements.",
+      "Return plain text; no markdown; no bullets; concise and actionable."
+    ].join(" ");
 
-    const lines = [];
-    lines.push(`Coverage of top JD terms: ${coverage}%`);
-    if (miss.length) {
-      lines.push(`Missing terms to consider: ${miss.slice(0, 10).map(m => m.term).join(", ")}`);
-    } else {
-      lines.push("Great! Your resume already covers the top JD terms.");
+    const user = [
+      "JOB DESCRIPTION:",
+      jobDesc,
+      "",
+      "CANDIDATE RESUME:",
+      resume,
+      "",
+      "Now provide the analysis."
+    ].join("\n");
+
+    const r = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model: MODEL,
+        messages: [
+          { role: "system", content: sys },
+          { role: "user", content: user }
+        ],
+        temperature: 0.3,
+        max_tokens: 700
+      })
+    });
+
+    if (!r.ok) {
+      const detail = await r.text().catch(() => "");
+      res.status(r.status).json({ error: "OpenAI error", detail });
+      return;
     }
-    lines.push("");
-    lines.push("Tips:");
-    lines.push("- Add bullets that weave missing terms into real accomplishments.");
-    lines.push("- Quantify outcomes (%, $, time saved) and name key tools.");
 
-    return res.status(200).json({ analysis: lines.join("\n") });
+    const data = await r.json();
+    const content = (data?.choices?.[0]?.message?.content || "").trim();
+
+    res.status(200).json({ analysis: content });
   } catch (err) {
     console.error("analyze error:", err);
-    return res.status(500).json({ error: "Server error in /api/analyze" });
+    res.status(500).json({ error: "Server error", detail: err?.message || String(err) });
   }
 };
+
+module.exports.config = { runtime: "nodejs" };

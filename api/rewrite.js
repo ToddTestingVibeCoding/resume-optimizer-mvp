@@ -1,117 +1,116 @@
-// api/rewrite.js  (CommonJS, Vercel-friendly)
+// api/rewrite.js
+// POST { resume, jd, options?: { tone, seniority, role } } -> { bullets: "• line\n• line\n..." }
 
-const DEFAULT_MODEL = process.env.OPENAI_MODEL || "gpt-4o-mini";
-
-function safeJson(req) {
-  let body = req.body;
-  if (typeof body === "string") {
-    try { body = JSON.parse(body); } catch { body = {}; }
-  } else if (!body) {
-    body = {};
-  }
-  return body;
-}
-
-function buildPrompt({ resume, jd, tone = "professional", seniority = "mid", role = "general" }) {
-  const sys = `
-You are a resume optimization assistant. Write truthful, ATS-friendly, impact-oriented bullet points that could be pasted into a resume.
-Rules:
-- Only output bullets, one per line (no numbering, no markdown).
-- 5–8 bullets max.
-- Use strong action verbs and quantify impact (%, $, time) where plausible from the resume.
-- Tailor to the job description while staying faithful to the candidate's actual experience.
-- Incorporate relevant terminology from the JD only if supported by the resume; otherwise suggest adjacent phrasing.
-- Tone: ${tone}. Seniority target: ${seniority}. Role family: ${role}.
-`.trim();
-
-  const user = `
-RESUME:
-${resume}
-
-JOB DESCRIPTION:
-${jd}
-
-Task: Produce 5–8 tailored resume bullets (one per line). Do NOT include any headers or extra text.
-`.trim();
-
-  return { system: sys, user };
-}
-
-async function callOpenAI({ apiKey, model, system, user }) {
-  const r = await fetch("https://api.openai.com/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${apiKey}`,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
-      model,
-      temperature: 0.6,
-      max_tokens: 600,
-      messages: [
-        { role: "system", content: system },
-        { role: "user", content: user }
-      ]
-    })
-  });
-
-  if (!r.ok) {
-    const text = await r.text();
-    // Try to shape common errors nicely
-    if (r.status === 401) {
-      throw new Error(`OpenAI authentication failed (401). Check OPENAI_API_KEY. Details: ${text}`);
-    }
-    if (r.status === 429) {
-      throw new Error(`OpenAI rate limit (429). Try again shortly or upgrade limits. Details: ${text}`);
-    }
-    throw new Error(`OpenAI error (${r.status}). ${text}`);
-  }
-
-  const data = await r.json();
-  const content = data?.choices?.[0]?.message?.content?.trim() || "";
-  return content;
-}
+const MODEL = "gpt-4o-mini";
 
 module.exports = async (req, res) => {
   try {
     if (req.method !== "POST") {
-      res.setHeader("Allow", "POST");
-      return res.status(405).json({ error: "Method not allowed" });
+      res.status(405).json({ error: "Method not allowed" });
+      return;
     }
 
     const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) {
-      return res.status(500).json({
-        error: "Missing OPENAI_API_KEY",
-        detail: "Set the OPENAI_API_KEY environment variable in Vercel Project → Settings → Environment Variables."
-      });
+      res.status(500).json({ error: "Server misconfig: missing OPENAI_API_KEY" });
+      return;
     }
 
-    const body = safeJson(req);
-    const resume = (body.resume || "").trim();
-    const jd = (body.jd || body.jobDesc || "").trim();
-    const tone = (body.tone || "professional").toString().toLowerCase();
-    const seniority = (body.seniority || "mid").toString().toLowerCase();
-    const role = (body.role || "general").toString().toLowerCase();
+    // Read body (no body-parser in Vercel functions)
+    let raw = "";
+    await new Promise((resolve, reject) => {
+      req.on("data", (c) => (raw += c));
+      req.on("end", resolve);
+      req.on("error", reject);
+    });
+
+    /** @type {{resume?:string, jd?:string, options?:{tone?:string, seniority?:string, role?:string}}} */
+    let payload = {};
+    try {
+      payload = JSON.parse(raw || "{}");
+    } catch {
+      res.status(400).json({ error: "Invalid JSON" });
+      return;
+    }
+
+    const resume = (payload.resume || "").toString().trim();
+    const jd = (payload.jd || "").toString().trim();
+    const tone = (payload.options?.tone || "professional").toString().toLowerCase();
+    const seniority = (payload.options?.seniority || "mid").toString().toLowerCase();
+    const role = (payload.options?.role || "").toString();
 
     if (!resume || !jd) {
-      return res.status(400).json({ error: "Missing resume or job description" });
+      res.status(400).json({ error: "Please provide both resume and job description." });
+      return;
     }
 
-    const { system, user } = buildPrompt({ resume, jd, tone, seniority, role });
-    const bulletsText = await callOpenAI({ apiKey, model: DEFAULT_MODEL, system, user });
+    const sys = [
+      "You are an expert resume writer.",
+      "Return 6–10 impact bullets tailored to the job description.",
+      "Each bullet must be concise, action-oriented, and quantified where reasonable.",
+      "Align wording with the JD while staying truthful to the resume.",
+      "Use plain text bullets, one per line. No numbering, no extra prose."
+    ].join(" ");
 
-    // Normalize: ensure one bullet per line, strip stray numbering/markers.
-    const cleaned = bulletsText
+    const user = [
+      `Tone: ${tone}; Seniority: ${seniority}; Role context: ${role || "unspecified"}.`,
+      "",
+      "JOB DESCRIPTION:",
+      jd,
+      "",
+      "CANDIDATE RESUME:",
+      resume,
+      "",
+      "Now produce only the bullets (one per line)."
+    ].join("\n");
+
+    const r = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model: MODEL,
+        messages: [
+          { role: "system", content: sys },
+          { role: "user", content: user }
+        ],
+        temperature: 0.5,
+        max_tokens: 600
+      })
+    });
+
+    if (!r.ok) {
+      const detail = await r.text().catch(() => "");
+      // Bubble up friendly errors your UI formats nicely
+      res.status(r.status).json({ error: "OpenAI error", detail });
+      return;
+    }
+
+    const data = await r.json();
+    const content = (data?.choices?.[0]?.message?.content || "").trim();
+
+    // Normalize to clean bullet lines
+    const lines = content
       .split("\n")
       .map(l => l.trim())
       .filter(Boolean)
-      .map(l => l.replace(/^[-•*\d.)\s]+/, "")) // strip any leading markers
-      .join("\n");
+      .map(l => l.replace(/^[-•*\d.)\s]+/, "")); // strip leading markers
 
-    return res.status(200).json({ bullets: cleaned });
+    if (!lines.length) {
+      res.status(200).json({ bullets: "" });
+      return;
+    }
+
+    // Re-join with • markers so your UI shows them nicely
+    const bullets = lines.map(l => `• ${l}`).join("\n");
+    res.status(200).json({ bullets });
   } catch (err) {
     console.error("rewrite error:", err);
-    return res.status(500).json({ error: "Server error in /api/rewrite", detail: String(err.message || err) });
+    res.status(500).json({ error: "Server error", detail: err?.message || String(err) });
   }
 };
+
+// Vercel runtime (avoid "nodejs20.x" error)
+module.exports.config = { runtime: "nodejs" };
