@@ -346,53 +346,70 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // ----- Analyze Alignment → #analysis (+ side panels if returned) -----
-  {
-    const analyzeBtn = $("analyzeBtn");
-    if (analyzeBtn) {
-      const handler = withLoading(analyzeBtn, "Analyzing…", async () => {
-        const resume = (resumeEl?.value || "").trim();
-        const jobDesc = (jdEl?.value || "").trim();
-        if (!resume || !jobDesc) { showMessage("warn", "Please paste both Resume and Job Description."); return; }
+  // ----- Analyze Alignment → #analysis (+ Top JD / Missing / Suggestions) -----
+(function wireAnalyze() {
+  // lightweight helper (uses your existing $ if present)
+  const $ = window.$ || ((id) => document.getElementById(id));
 
-        const analysisBox = $("analysis");
-        if (analysisBox) analysisBox.innerHTML = spinnerHTML("Analyzing alignment…");
+  const analyzeBtn = $("analyzeBtn");
+  if (!analyzeBtn) return;
 
-        try {
-          const r = await fetch("/api/analyze", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ resume, jobDesc })
-          });
-          if (!r.ok) throw new Error(await r.text());
-          const data = await r.json();
+  const handler = withLoading(analyzeBtn, "Analyzing…", async () => {
+    // read current inputs safely
+    const resume  = ($("#resume")?.value || "").trim();
+    const jobDesc = ($("#jobDesc")?.value || $("#jd")?.value || "").trim();
 
-          const analysisText = (data.analysis || "").toString();
-          if (analysisBox) {
-            analysisBox.innerHTML = analysisText
-              ? `<p>${analysisText.replace(/\n/g, "<br>")}</p>`
-              : `<p>No analysis returned.</p>`;
-          }
-
-          if (Array.isArray(data.topTerms)) {
-            const ul = $("topJd"); if (ul) ul.innerHTML = data.topTerms.map(t=>`<li>${t}</li>`).join("");
-          }
-          if (Array.isArray(data.missingTerms)) {
-            const ul = $("missing"); if (ul) ul.innerHTML = data.missingTerms.map(t=>`<li>${t}</li>`).join("");
-          }
-          if (Array.isArray(data.suggestions)) {
-            const ul = $("suggestions"); if (ul) ul.innerHTML = data.suggestions.map(s=>`<li>${s}</li>`).join("");
-          }
-
-          showMessage("success", "Alignment analysis complete.");
-        } catch (err) {
-          if (analysisBox) analysisBox.innerHTML = "";
-          showMessage("error", friendlyError(err));
-        }
-      });
-      analyzeBtn.addEventListener("click", handler);
+    if (!resume || !jobDesc) {
+      showMessage("warn", "Please paste both Resume and Job Description.");
+      return;
     }
-  }
+
+    const analysisBox = $("analysis");
+    if (analysisBox) analysisBox.innerHTML = spinnerHTML("Analyzing alignment…");
+
+    try {
+      const r = await fetch("/api/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ resume, jobDesc })
+      });
+      if (!r.ok) throw new Error(await r.text());
+      const data = await r.json();
+
+      // main analysis body (string)
+      const analysisText = (data.analysis ?? "").toString();
+      if (analysisBox) {
+        analysisBox.innerHTML = analysisText
+          ? `<p>${analysisText.replace(/\n/g, "<br>")}</p>`
+          : `<p>No analysis returned.</p>`;
+      }
+
+      // helper: render arrays OR newline-strings into <ul>
+      const renderList = (ulId, value) => {
+        const ul = $(ulId);
+        if (!ul) return;
+        const items = Array.isArray(value)
+          ? value
+          : typeof value === "string"
+            ? value.split(/\r?\n/).map(s => s.trim())
+            : [];
+        ul.innerHTML =
+          items.filter(Boolean).map(s => `<li>${s}</li>`).join("") || "<li>—</li>";
+      };
+
+      renderList("topJd",       data.topTerms);
+      renderList("missing",     data.missingTerms);
+      renderList("suggestions", data.suggestions);
+
+      showMessage("success", "Alignment analysis complete.");
+    } catch (err) {
+      if (analysisBox) analysisBox.innerHTML = "";
+      showMessage("error", friendlyError(err));
+    }
+  });
+
+  analyzeBtn.addEventListener("click", handler);
+})();
 
   // ----- Rewrite (AI) → #aiBullets with limit -----
   {
