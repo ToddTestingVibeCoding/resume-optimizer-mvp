@@ -1,129 +1,94 @@
-// api/analyze.js
-// Summarizes alignment + extracts top JD terms, missing terms, and suggestions.
-// Requires: process.env.OPENAI_API_KEY (and optional OPENAI_MODEL)
+// /api/analyze.js
+// POST { resume, jobDesc } -> { analysis: string, topTerms: string[], missingTerms: string[], suggestions: string[] }
 
 const DEFAULT_MODEL = process.env.OPENAI_MODEL || "gpt-4o-mini";
 
-module.exports = async (req, res) => {
-  try {
-    if (req.method !== "POST") {
-      res.status(405).json({ error: "Method not allowed" });
-      return;
-    }
-
-    // Read body safely
-    let body = "";
-    await new Promise((resolve, reject) => {
-      req.on("data", (c) => (body += c));
-      req.on("end", resolve);
-      req.on("error", reject);
-    });
-
-    let payload = {};
-    try {
-      payload = JSON.parse(body || "{}");
-    } catch {
-      res.status(400).json({ error: "Invalid JSON" });
-      return;
-    }
-
-    const resume = (payload.resume || "").toString();
-    const jobDesc = (payload.jobDesc || payload.jd || "").toString();
-    if (!resume.trim() || !jobDesc.trim()) {
-      res.status(400).json({ error: "Missing resume or jobDesc" });
-      return;
-    }
-
-    const apiKey = process.env.OPENAI_API_KEY;
-    if (!apiKey) {
-      res.status(500).json({ error: "Server not configured (API key missing)" });
-      return;
-    }
-
-    // Prompt asks for strict JSON
-    const system = `You are an expert resume coach. Return STRICT JSON only with keys:
-{
-  "analysis": string,                 // a concise paragraph
-  "topTerms": [{"term": string, "count": number}], // 10–20 top JD terms (estimated counts OK)
-  "missingTerms": [{"term": string}], // subset not present in resume
-  "suggestions": [string]             // 5–10 action suggestions
+async function readJson(req) {
+  let body = "";
+  await new Promise((resolve, reject) => {
+    req.on("data", (c) => (body += c));
+    req.on("end", resolve);
+    req.on("error", reject);
+  });
+  try { return JSON.parse(body || "{}"); }
+  catch { return {}; }
 }
-No extra text. No markdown.`;
 
-    const user = `JOB DESCRIPTION:
-"""
-${jobDesc}
-"""
-
-CANDIDATE RESUME:
-"""
-${resume}
-"""
-
-Tasks:
-1) Summarize alignment in one tight paragraph.
-2) Extract the most important skills/keywords from the JD as topTerms (10–20).
-3) Identify which top JD terms are missing from the resume as missingTerms.
-4) Provide 5–10 concrete suggestions to improve alignment.`;
-
+async function callOpenAI(messages, temperature = 0.2) {
+  const key = process.env.OPENAI_API_KEY;
+  if (!key) throw new Error("Missing OPENAI_API_KEY");
+  const ctrl = new AbortController();
+  const to = setTimeout(() => ctrl.abort(), 60_000);
+  try {
     const r = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json"
+        "Authorization": `Bearer ${key}`,
+        "Content-Type": "application/json",
       },
       body: JSON.stringify({
         model: DEFAULT_MODEL,
-        temperature: 0.2,
-        messages: [
-          { role: "system", content: system },
-          { role: "user", content: user }
-        ]
-      })
+        messages,
+        temperature,
+        response_format: { type: "json_object" }
+      }),
+      signal: ctrl.signal
     });
+    if (!r.ok) throw new Error(await r.text());
+    const data = await r.json();
+    const msg = data.choices?.[0]?.message?.content || "{}";
+    return msg;
+  } finally {
+    clearTimeout(to);
+  }
+}
 
-    if (!r.ok) {
-      const detail = await safeText(r);
-      const status = r.status;
-      // Bubble a rate-limit-ish status so the client can retry
-      if (status === 429 || (status >= 500 && status < 600)) {
-        res.status(status).json({ error: "Upstream AI error", detail });
-        return;
-      }
-      res.status(502).json({ error: "Upstream AI error", detail });
+function asArray(x) {
+  if (!x) return [];
+  if (Array.isArray(x)) return x.map(String).filter(Boolean);
+  try {
+    const y = JSON.parse(String(x));
+    if (Array.isArray(y)) return y.map(String).filter(Boolean);
+    if (y && Array.isArray(y.terms)) return y.terms.map(String).filter(Boolean);
+  } catch (_) {}
+  return String(x).split(/\n|,|;/).map((s) => s.trim()).filter(Boolean);
+}
+
+module.exports = async (req, res) => {
+  try {
+    if (req.method !== "POST") { res.status(405).json({ error: "Method not allowed" }); return; }
+
+    const { resume, jobDesc } = await readJson(req);
+    if (!resume || !jobDesc) {
+      res.status(400).json({ error: "Missing resume or job description" });
       return;
     }
 
-    const data = await r.json();
-    const raw = data?.choices?.[0]?.message?.content || "";
+    const sys = {
+      role: "system",
+      content:
+        "Analyze alignment between a resume and a job description. Respond ONLY with JSON of shape: " +
+        "{ \"analysis\": string, \"topTerms\": string[], \"missingTerms\": string[], \"suggestions\": string[] }. No markdown."
+    };
+    const user = {
+      role: "user",
+      content:
+        `Resume:\n${resume}\n\n` +
+        `Job Description:\n${jobDesc}\n\n` +
+        `Return JSON with those four fields. Keep analysis concise (<= 150 words).`
+    };
 
-    // Parse strict JSON
+    const raw = await callOpenAI([sys, user], 0.2);
     let parsed;
-    try {
-      parsed = JSON.parse(raw);
-    } catch {
-      // Fallback: wrap whole text as analysis if model drifted
-      parsed = {
-        analysis: raw || "Analysis unavailable.",
-        topTerms: [],
-        missingTerms: [],
-        suggestions: []
-      };
-    }
+    try { parsed = JSON.parse(raw); } catch { parsed = {}; }
 
-    // Normalize shapes for the front-end
-    const topTerms = Array.isArray(parsed.topTerms)
-      ? parsed.topTerms.map(t =>
-          typeof t === "string" ? { term: t, count: 1 } : { term: t.term, count: t.count ?? 1 }
-        )
-      : [];
-    const missingTerms = Array.isArray(parsed.missingTerms)
-      ? parsed.missingTerms.map(t => (typeof t === "string" ? { term: t } : { term: t.term }))
-      : [];
-    const suggestions = Array.isArray(parsed.suggestions) ? parsed.suggestions : [];
+    const analysis = (parsed.analysis || "").toString();
+    const topTerms = asArray(parsed.topTerms);
+    const missingTerms = asArray(parsed.missingTerms);
+    const suggestions = asArray(parsed.suggestions);
 
     res.status(200).json({
-      analysis: parsed.analysis || "Analysis unavailable.",
+      analysis,
       topTerms,
       missingTerms,
       suggestions
@@ -134,11 +99,4 @@ Tasks:
   }
 };
 
-async function safeText(resp) {
-  try { return await resp.text(); } catch { return ""; }
-}
-
-// Vercel runtime (avoid “nodejs20.x” error)
-module.exports.config = {
-  runtime: "nodejs"
-};
+module.exports.config = { runtime: "nodejs" };

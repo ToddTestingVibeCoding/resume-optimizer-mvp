@@ -1,115 +1,99 @@
-// api/extract.js
-// Production: formidable v3 (callback style) + .docx/.pdf/.txt extraction on Vercel
+// /api/extract.js
+// Multipart upload -> { text } from .docx | .pdf | .txt
+// Requires dependencies: formidable, mammoth, pdf-parse
 
 const fs = require("fs");
 const path = require("path");
-const { formidable } = require("formidable"); // v3 import
+const os = require("os");
 
-function firstFileFrom(files) {
-  if (!files) return null;
-  if (files.file) return Array.isArray(files.file) ? files.file[0] : files.file;
-  const keys = Object.keys(files);
-  if (!keys.length) return null;
-  const v = files[keys[0]];
-  return Array.isArray(v) ? v[0] : v;
+let formidableLib; // dynamic to handle CJS/ESM variations
+async function getFormidable() {
+  if (formidableLib) return formidableLib;
+  try {
+    // CJS default export v2/v3
+    formidableLib = require("formidable");
+  } catch (_) {
+    // ESM fallback
+    const m = await import("formidable");
+    formidableLib = m.default || m.formidable || m;
+  }
+  return formidableLib;
 }
 
-function getFilepath(fileObj) {
-  // formidable v3 stores temp file at .filepath
-  return fileObj?.filepath || fileObj?.path || null;
+function createForm(formidable) {
+  // Support different export shapes across versions
+  if (typeof formidable === "function") {
+    return formidable({ multiples: false, keepExtensions: true, uploadDir: os.tmpdir() });
+  }
+  if (typeof formidable.formidable === "function") {
+    return formidable.formidable({ multiples: false, keepExtensions: true, uploadDir: os.tmpdir() });
+  }
+  if (typeof formidable.IncomingForm === "function") {
+    return new formidable.IncomingForm({ multiples: false, keepExtensions: true, uploadDir: os.tmpdir() });
+  }
+  throw new Error("Unsupported formidable export shape");
 }
 
-async function parsePDF(buf) {
-  const pdfParse = require("pdf-parse");
-  const out = await pdfParse(buf);
-  return (out.text || "").trim();
-}
-
-async function parseDOCX(buf) {
-  const mammoth = require("mammoth");
-  const out = await mammoth.extractRawText({ buffer: buf });
-  return (out.value || "").trim();
-}
-
-module.exports = (req, res) => {
-  const ct = (req.headers["content-type"] || "").toLowerCase();
-  if (!ct.includes("multipart/form-data")) {
-    res.statusCode = 400;
-    return res.json({
-      error: "Bad request",
-      detail:
-        `Expected multipart/form-data (got "${ct || "none"}"). Use the Upload button.`,
+async function parseForm(req) {
+  const formidable = await getFormidable();
+  const form = createForm(formidable);
+  return await new Promise((resolve, reject) => {
+    form.parse(req, (err, fields, files) => {
+      if (err) return reject(err);
+      resolve({ fields, files });
     });
+  });
+}
+
+async function extractText(file) {
+  const filepath = file?.filepath || file?.path;
+  const orig = file?.originalFilename || file?.name || "";
+  if (!filepath) throw new Error("No uploaded file path");
+  const ext = path.extname(orig || filepath).toLowerCase();
+
+  if (ext === ".docx") {
+    const mammoth = require("mammoth");
+    const r = await mammoth.extractRawText({ path: filepath });
+    return (r.value || "").trim();
   }
 
-  const form = formidable({
-    multiples: false,
-    keepExtensions: true,
-    maxFileSize: 10 * 1024 * 1024, // 10 MB
-  });
+  if (ext === ".pdf") {
+    const pdfParse = require("pdf-parse");
+    const buf = fs.readFileSync(filepath);
+    const r = await pdfParse(buf);
+    return (r.text || "").trim();
+  }
 
-  form.parse(req, async (err, fields, files) => {
-    try {
-      if (err) {
-        res.statusCode = 500;
-        return res.json({ error: "Extraction failed", detail: err.message });
-      }
+  // fallback: treat as plain text
+  const txt = fs.readFileSync(filepath, "utf8");
+  return (txt || "").trim();
+}
 
-      const fileObj = firstFileFrom(files);
-      if (!fileObj) {
-        res.statusCode = 400;
-        return res.json({
-          error: "No file uploaded",
-          detail:
-            "Could not find an uploaded file field. Try selecting a .docx, .pdf, or .txt via the Upload button.",
-        });
-      }
+module.exports = async (req, res) => {
+  try {
+    if (req.method !== "POST") { res.status(405).json({ error: "Method not allowed" }); return; }
 
-      const filepath = getFilepath(fileObj);
-      if (!filepath) {
-        res.statusCode = 500;
-        return res.json({
-          error: "Extraction failed",
-          detail: "Temporary upload filepath missing.",
-        });
-      }
+    const { files } = await parseForm(req);
 
-      const buf = await fs.promises.readFile(filepath);
-      const filename = fileObj.originalFilename || fileObj.newFilename || "upload";
-      const ext = (path.extname(filename) || "").toLowerCase();
-
-      let text = "";
-      if (ext === ".txt") {
-        text = buf.toString("utf8");
-      } else if (ext === ".pdf") {
-        text = await parsePDF(buf);
-      } else if (ext === ".docx") {
-        text = await parseDOCX(buf);
-      } else {
-        // Fallback: sniff magic bytes for PDF, else try DOCX, else utf8
-        const head = buf.slice(0, 4).toString("hex");
-        if (head.startsWith("25504446")) {
-          text = await parsePDF(buf);
-        } else {
-          try { text = await parseDOCX(buf); }
-          catch { text = buf.toString("utf8"); }
-        }
-      }
-
-      if (!text) {
-        res.statusCode = 422;
-        return res.json({
-          error: "Extraction failed",
-          detail:
-            "We couldn’t extract any text. Try a simpler .docx/.pdf or a .txt file.",
-        });
-      }
-
-      res.setHeader("Content-Type", "application/json");
-      return res.end(JSON.stringify({ ok: true, text }));
-    } catch (e) {
-      res.statusCode = 500;
-      return res.json({ error: "Extraction failed", detail: e.message });
+    // Find the uploaded file; accept various keys
+    const candidates = ["file", "resume", "upload"];
+    let f;
+    for (const key of candidates) {
+      const v = files?.[key];
+      if (!v) continue;
+      f = Array.isArray(v) ? v[0] : v;
+      if (f) break;
     }
-  });
+    if (!f) { res.status(400).json({ error: "No file uploaded" }); return; }
+
+    const text = await extractText(f);
+    if (!text) { res.status(400).json({ error: "Could not extract text" }); return; }
+
+    res.status(200).json({ text });
+  } catch (err) {
+    console.error("extract error:", err);
+    res.status(500).json({ error: "Extraction failed", detail: err?.message || String(err) });
+  }
 };
+
+module.exports.config = { runtime: "nodejs" };
